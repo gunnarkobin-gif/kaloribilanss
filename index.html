@@ -565,7 +565,7 @@ $("foodQ").addEventListener("keydown",e=>{
   const btns=[...$("foodResults").querySelectorAll("button")];
   if(e.key==="ArrowDown"||e.key==="ArrowUp"){if(!btns.length)return;e.preventDefault();btns[active]?.classList.remove("active");
     active=(active+(e.key==="ArrowDown"?1:-1)+btns.length)%btns.length;btns[active].classList.add("active")}
-  if(e.key==="Enter"){e.preventDefault();if(results[active])choose(results[active]);else if(offItems[0])choose(offItems[0])}
+  if(e.key==="Enter"){e.preventDefault();if(results[active])choose(results[active]);else if(offItems[0])choose(offItems[0]);else $("offGo")?.click()}
 });
 $("pickPortion").onchange=pickCalc;$("pickCount").oninput=pickCalc;
 $("cMinus").onclick=()=>{const c=Math.max(0.5,(+$("pickCount").value||1)-(+$("pickCount").value>1?1:0.5));$("pickCount").value=c;pickCalc()};
@@ -599,36 +599,34 @@ function renderOff(items){
     b.querySelector(".r-kcal").textContent=pl==="100 g"?`${fmt(f.kcal)} kcal / 100 g`:`${fmt(f.kcal*pg/100)} kcal / ${pl.split(" (")[0]}`;
     b.onclick=()=>choose(f);li.append(b);ul.append(li)});
 }
-let offLast=0,offRetry=null;
-function offSearch(q,isRetry){
-  clearTimeout(offTimer);clearTimeout(offRetry);const box=$("offBox");const term=parseQuery(q).words.join(" ");
+/* Open Food Facts lubab vaid mõne otsingu minutis, seega otsime poe toodetest nupuvajutusega */
+let offBusy=false;
+function offSearch(q){
+  const box=$("offBox");const term=parseQuery(q).words.join(" ");
   if(term.length<3){box.hidden=true;offItems=[];return}
   box.hidden=false;
   if(offCache[term]){renderOff(offCache[term]);return}
   $("offResults").innerHTML="";$("offResults").hidden=true;offItems=[];
-  $("offNote").textContent=isRetry?"Proovin uuesti…":"Otsin poe toodetest…";
-  /* Open Food Facts lubab umbes 10 otsingut minutis: ootame, kuni kirjutamine on lõppenud, ja hoiame päringute vahel pausi */
-  const wait=Math.max(1100,offLast+7000-Date.now());
-  offTimer=setTimeout(async()=>{
-    if(parseQuery($("foodQ").value).words.join(" ")!==term||picked)return;
-    offCtl?.abort();offCtl=new AbortController();offLast=Date.now();
-    const url="https://world.openfoodfacts.org/cgi/search.pl?"+new URLSearchParams({search_terms:term,search_simple:"1",action:"process",json:"1",page_size:"24",
-      fields:"code,product_name,product_name_et,product_name_en,brands,nutriments,serving_size,serving_quantity,product_quantity,quantity"});
-    try{
-      const r=await fetch(url,{signal:offCtl.signal});
-      if(!r.ok)throw{code:r.status};
-      const j=await r.json();const seen=new Set();
-      const items=(j.products||[]).map(offItem).filter(f=>f&&!seen.has(f.name.toLowerCase())&&seen.add(f.name.toLowerCase())).slice(0,8);
-      offCache[term]=items;
-      if(parseQuery($("foodQ").value).words.join(" ")===term&&!picked)renderOff(items);
-    }catch(e){
-      if(e&&e.name==="AbortError")return;
-      if(!isRetry){$("offNote").textContent="Poe toodete andmebaas lubab ainult mõne otsingu minutis. Proovin 20 sekundi pärast uuesti…";
-        offRetry=setTimeout(()=>{offLast=0;offSearch($("foodQ").value,true)},20000);return}
-      $("offNote").innerHTML="";const t=document.createTextNode("Poe toodete otsing ei õnnestunud. ");const b=document.createElement("button");b.type="button";b.className="linkbtn";b.textContent="Proovi uuesti";
-      b.onclick=()=>{offLast=0;offSearch($("foodQ").value,true)};$("offNote").append(t,b);
-    }
-  },wait);
+  $("offNote").innerHTML="";const b=document.createElement("button");b.type="button";b.className="btn ghost small";b.id="offGo";
+  b.textContent=`Otsi „${term}” poe toodetest`;b.onclick=()=>offFetch(term);$("offNote").append(b);
+}
+async function offFetch(term){
+  if(offBusy)return;offBusy=true;
+  $("offNote").textContent="Otsin poe toodetest…";
+  const url="https://world.openfoodfacts.org/cgi/search.pl?"+new URLSearchParams({search_terms:term,search_simple:"1",action:"process",json:"1",page_size:"24",
+    fields:"code,product_name,product_name_et,product_name_en,brands,nutriments,serving_size,serving_quantity,product_quantity,quantity"});
+  try{
+    const r=await fetch(url);
+    if(!r.ok)throw{code:r.status};
+    const j=await r.json();const seen=new Set();
+    const items=(j.products||[]).map(offItem).filter(f=>f&&!seen.has(f.name.toLowerCase())&&seen.add(f.name.toLowerCase())).slice(0,10);
+    offCache[term]=items;
+    if(parseQuery($("foodQ").value).words.join(" ")===term&&!picked)renderOff(items);
+  }catch(e){
+    $("offNote").innerHTML="";
+    $("offNote").append(document.createTextNode("Poe toodete andmebaas ei vastanud. See lubab vaid mõne otsingu minutis, proovi natukese aja pärast uuesti. "));
+    const b=document.createElement("button");b.type="button";b.className="linkbtn";b.textContent="Proovi uuesti";b.onclick=()=>offFetch(term);$("offNote").append(b);
+  }finally{offBusy=false}
 }
 
 /* manual */
