@@ -133,6 +133,7 @@ footer{color:var(--muted);font-size:13px;max-width:75ch}
 @media (prefers-reduced-motion: reduce){.bar{transition:none}}
 .src{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:4px 0 6px}
 footer a{color:inherit}
+.settings{margin-top:12px}.settings summary{cursor:pointer;font-weight:600;color:var(--fg)}.settings p{margin:8px 0}.settings input{width:100%;max-width:360px}
 </style>
 </head>
 <body>
@@ -207,10 +208,18 @@ footer a{color:inherit}
         <span id="noMatchText"></span>
       </div>
 
-      <div id="offBox" hidden>
-        <div class="src">Poe tooted · Open Food Facts</div>
-        <ul class="results" id="offResults"></ul>
-        <p class="hint" id="offNote"></p>
+      <div id="webBox" hidden>
+        <p class="hint" id="webNote"></p>
+        <div id="usdaSec" hidden>
+          <div class="src" id="usdaHead">Toidud ja toiduained · USDA</div>
+          <ul class="results" id="usdaResults"></ul>
+          <p class="hint" id="usdaNote"></p>
+        </div>
+        <div id="offSec" hidden>
+          <div class="src">Poe tooted · Open Food Facts</div>
+          <ul class="results" id="offResults"></ul>
+          <p class="hint" id="offNote"></p>
+        </div>
       </div>
 
       <div>
@@ -229,7 +238,12 @@ footer a{color:inherit}
   </div>
 
   <footer>
-    Kulutus arvutatakse valemiga MET × kehakaal (kg) × tunnid, MET-väärtused on võetud kehalise aktiivsuse kompendiumist. Tulemus on hinnang: tegelik kulu sõltub tempost, vanusest ja vormist. Arvesse on võetud ainult liikumine, mitte keha põhiainevahetus. Äpi nimekirja kalorid on keskmised väärtused. Poe toodete andmed pärinevad avatud andmebaasist <a href="https://world.openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a> (ODbL). Andmed salvestuvad ainult sinu brauserisse.
+    Kulutus arvutatakse valemiga MET × kehakaal (kg) × tunnid, MET-väärtused on võetud kehalise aktiivsuse kompendiumist. Tulemus on hinnang: tegelik kulu sõltub tempost, vanusest ja vormist. Arvesse on võetud ainult liikumine, mitte keha põhiainevahetus. Äpi nimekirja kalorid on keskmised väärtused. Internetiotsingu andmed: <a href="https://fdc.nal.usda.gov" target="_blank" rel="noopener">USDA FoodData Central</a> ja <a href="https://world.openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a> (ODbL), tõlge <a href="https://mymemory.translated.net" target="_blank" rel="noopener">MyMemory</a>. Andmed salvestuvad ainult sinu brauserisse.
+    <details class="settings"><summary>Seaded</summary>
+      <p>Toiduainete otsing kasutab USDA FoodData Central andmebaasi. Ühise demovõtmega saab teha umbes 30 otsingut tunnis. Oma tasuta võtme saad aadressilt <a href="https://fdc.nal.usda.gov/api-key-signup" target="_blank" rel="noopener">fdc.nal.usda.gov/api-key-signup</a>, siis on limiit 1000 otsingut tunnis.</p>
+      <label class="fld" for="usdaKeyIn">USDA API võti<input type="text" id="usdaKeyIn" autocomplete="off" spellcheck="false" placeholder="kasutusel demovõti"></label>
+      <p class="hint" id="usdaKeySaved"></p>
+    </details>
   </footer>
 </div>
 
@@ -536,7 +550,7 @@ let results=[],active=0,picked=null,qCount=null;
 function showResults(){
   const q=$("foodQ").value.trim();const ul=$("foodResults");ul.innerHTML="";
   $("noMatch").hidden=true;
-  if(!q){ul.hidden=true;$("offBox").hidden=true;return}
+  if(!q){ul.hidden=true;$("webBox").hidden=true;return}
   const r=search(q);results=r.items;qCount=r.count;active=0;
   if(results.length){
     results.forEach((f,i)=>{const [pl,pg]=f.portions[0];const li=document.createElement("li");const b=document.createElement("button");b.type="button";
@@ -547,11 +561,11 @@ function showResults(){
       if(i===0)b.classList.add("active");
       b.onclick=()=>choose(f);li.append(b);ul.append(li)});
     ul.hidden=false;
-  }else{ul.hidden=true;$("noMatch").hidden=false;$("noMatchText").textContent=`„${q}” ei ole äpi nimekirjas. Vaata allpool poe tooteid või sisesta kalorid ise.`}
+  }else{ul.hidden=true;$("noMatch").hidden=false;$("noMatchText").textContent=`„${q}” ei ole äpi nimekirjas. Otsi allpool internetist või sisesta kalorid ise.`}
   offSearch(q);
 }
 function choose(f){
-  picked=f;$("pick").hidden=false;$("foodResults").hidden=true;$("noMatch").hidden=true;$("offBox").hidden=true;
+  picked=f;$("pick").hidden=false;$("foodResults").hidden=true;$("noMatch").hidden=true;$("webBox").hidden=true;
   $("pickName").textContent=f.name;const s=$("pickPortion");s.innerHTML="";
   f.portions.forEach(([l,g],i)=>s.add(new Option(`${l} · ${fmt(f.kcal*g/100)} kcal`,i)));
   $("pickCount").value=qCount&&qCount>0?qCount:1;pickCalc();$("pickAdd").focus();
@@ -565,7 +579,7 @@ $("foodQ").addEventListener("keydown",e=>{
   const btns=[...$("foodResults").querySelectorAll("button")];
   if(e.key==="ArrowDown"||e.key==="ArrowUp"){if(!btns.length)return;e.preventDefault();btns[active]?.classList.remove("active");
     active=(active+(e.key==="ArrowDown"?1:-1)+btns.length)%btns.length;btns[active].classList.add("active")}
-  if(e.key==="Enter"){e.preventDefault();if(results[active])choose(results[active]);else if(offItems[0])choose(offItems[0]);else $("offGo")?.click()}
+  if(e.key==="Enter"){e.preventDefault();if(results[active])choose(results[active]);else if(webItems[0])choose(webItems[0]);else $("webGo")?.click()}
 });
 $("pickPortion").onchange=pickCalc;$("pickCount").oninput=pickCalc;
 $("cMinus").onclick=()=>{const c=Math.max(0.5,(+$("pickCount").value||1)-(+$("pickCount").value>1?1:0.5));$("pickCount").value=c;pickCalc()};
@@ -574,8 +588,11 @@ $("pickAdd").onclick=()=>{const k=pickCalc();const c=+$("pickCount").value;if(!(
   addFood(entryFrom(picked,c,+$("pickPortion").value));resetFood()};
 $("pickCancel").onclick=resetFood;
 
-/* Open Food Facts: poe tooted reaalajas */
-const offCache={};let offTimer=null,offCtl=null,offItems=[];
+/* Otsing internetist: eesti keel -> inglise keel (MyMemory), siis USDA toiduainete andmebaas ja Open Food Facts poe tooted */
+const webCache={};let webBusy=false,webItems=[];
+const USDA_DEFAULT="DEMO"+"_KEY";
+function usdaKey(){try{return localStorage.getItem("kb-usda-key")||USDA_DEFAULT}catch(e){return USDA_DEFAULT}}
+function cleanLabel(t){return String(t||"").replace(/^1\s+/,"").trim()}
 function offItem(p){
   const n=p.nutriments||{};let k=n["energy-kcal_100g"];
   if((k===undefined||k===null||k==="")&&n["energy_100g"]!=null)k=n["energy_100g"]/4.184;
@@ -588,45 +605,79 @@ function offItem(p){
   const brand=p.brands?String(p.brands).split(",")[0].trim():"";
   return{name:brand&&!name.toLowerCase().includes(brand.toLowerCase())?`${name} (${brand})`:name,kcal:k,portions,src:"Open Food Facts"};
 }
-function renderOff(items){
-  offItems=items;const ul=$("offResults");ul.innerHTML="";
-  if(!items.length){ul.hidden=true;$("offNote").textContent="Poe toodetest vasteid ei leitud.";return}
-  ul.hidden=false;$("offNote").textContent="";
-  items.forEach(f=>{const [pl,pg]=f.portions[0];const li=document.createElement("li");const b=document.createElement("button");b.type="button";
+function usdaItem(f){
+  const nut=f.foodNutrients||[];
+  const e=nut.find(n=>n.nutrientNumber==="208"||n.nutrientId===1008)||nut.find(n=>n.nutrientNumber==="958"||n.nutrientNumber==="957");
+  const k=e?+e.value:NaN;if(!isFinite(k)||k<0||k>950)return null;
+  const portions=[];const seen=new Set();
+  (f.foodMeasures||[]).forEach(m=>{const g=+m.gramWeight;const l=cleanLabel(m.disseminationText);
+    if(g>0&&l&&!/quantity not specified|surface inch|cubic inch/i.test(l)&&!seen.has(l)&&portions.length<5){seen.add(l);portions.push([`${l} (${fmt(g)} g)`,g])}});
+  portions.push(["100 g",100]);
+  const name=String(f.description||"").replace(/\s+/g," ").trim();if(!name)return null;
+  return{name,kcal:k,portions,src:"USDA"};
+}
+function listInto(ul,items){
+  ul.innerHTML="";items.forEach(f=>{const [pl,pg]=f.portions[0];const li=document.createElement("li");const b=document.createElement("button");b.type="button";
     b.innerHTML='<span class="r-name"><span></span><span class="r-por"></span></span><span class="r-kcal"></span>';
     b.querySelector(".r-name span").textContent=f.name;
-    b.querySelector(".r-por").textContent=`${fmt(f.kcal)} kcal 100 g kohta`;
+    b.querySelector(".r-por").textContent=f.portions.length>1?f.portions.slice(0,-1).map(p=>p[0]).join(" · "):`${fmt(f.kcal)} kcal 100 g kohta`;
     b.querySelector(".r-kcal").textContent=pl==="100 g"?`${fmt(f.kcal)} kcal / 100 g`:`${fmt(f.kcal*pg/100)} kcal / ${pl.split(" (")[0]}`;
     b.onclick=()=>choose(f);li.append(b);ul.append(li)});
+  ul.hidden=!items.length;
 }
-/* Open Food Facts lubab vaid mõne otsingu minutis, seega otsime poe toodetest nupuvajutusega */
-let offBusy=false;
 function offSearch(q){
-  const box=$("offBox");const term=parseQuery(q).words.join(" ");
-  if(term.length<3){box.hidden=true;offItems=[];return}
+  const box=$("webBox");const term=parseQuery(q).words.join(" ");
+  if(term.length<3){box.hidden=true;webItems=[];return}
   box.hidden=false;
-  if(offCache[term]){renderOff(offCache[term]);return}
-  $("offResults").innerHTML="";$("offResults").hidden=true;offItems=[];
-  $("offNote").innerHTML="";const b=document.createElement("button");b.type="button";b.className="btn ghost small";b.id="offGo";
-  b.textContent=`Otsi „${term}” poe toodetest`;b.onclick=()=>offFetch(term);$("offNote").append(b);
+  if(webCache[term]){showWeb(term,webCache[term]);return}
+  $("usdaSec").hidden=true;$("offSec").hidden=true;webItems=[];
+  const note=$("webNote");note.innerHTML="";
+  const b=document.createElement("button");b.type="button";b.className="btn eat small";b.id="webGo";
+  b.textContent=`Otsi „${term}” internetist`;b.onclick=()=>webFetch(term);
+  note.append(b,document.createTextNode(" toiduainete ja poe toodete andmebaasidest"));
 }
-async function offFetch(term){
-  if(offBusy)return;offBusy=true;
-  $("offNote").textContent="Otsin poe toodetest…";
-  const url="https://world.openfoodfacts.org/cgi/search.pl?"+new URLSearchParams({search_terms:term,search_simple:"1",action:"process",json:"1",page_size:"24",
-    fields:"code,product_name,product_name_et,product_name_en,brands,nutriments,serving_size,serving_quantity,product_quantity,quantity"});
-  try{
-    const r=await fetch(url);
-    if(!r.ok)throw{code:r.status};
-    const j=await r.json();const seen=new Set();
-    const items=(j.products||[]).map(offItem).filter(f=>f&&!seen.has(f.name.toLowerCase())&&seen.add(f.name.toLowerCase())).slice(0,10);
-    offCache[term]=items;
-    if(parseQuery($("foodQ").value).words.join(" ")===term&&!picked)renderOff(items);
-  }catch(e){
-    $("offNote").innerHTML="";
-    $("offNote").append(document.createTextNode("Poe toodete andmebaas ei vastanud. See lubab vaid mõne otsingu minutis, proovi natukese aja pärast uuesti. "));
-    const b=document.createElement("button");b.type="button";b.className="linkbtn";b.textContent="Proovi uuesti";b.onclick=()=>offFetch(term);$("offNote").append(b);
-  }finally{offBusy=false}
+function showWeb(term,r){
+  $("webNote").textContent=r.en&&r.en.toLowerCase()!==term?`Otsisin inglise keeles: „${r.en}”`:"";
+  $("usdaSec").hidden=false;listInto($("usdaResults"),r.usda);
+  $("usdaNote").textContent=r.usdaErr||(!r.usda.length?"Vasteid ei leitud.":"");
+  $("offSec").hidden=false;listInto($("offResults"),r.off);
+  $("offNote").textContent=r.offErr||(!r.off.length?"Vasteid ei leitud.":"");
+  webItems=[...r.usda,...r.off];
+}
+async function translate(t){
+  try{const r=await fetch("https://api.mymemory.translated.net/get?"+new URLSearchParams({q:t,langpair:"et|en"}));
+    const j=await r.json();const out=j&&j.responseData&&j.responseData.translatedText;
+    if(r.ok&&out&&!/MYMEMORY WARNING|QUERY LENGTH/i.test(out))return out.replace(/[.!]+$/,"");}catch(e){}
+  return null;
+}
+async function webFetch(term){
+  if(webBusy)return;webBusy=true;
+  $("webNote").textContent="Otsin internetist…";$("usdaSec").hidden=true;$("offSec").hidden=true;
+  const res={usda:[],off:[],en:null};
+  const en=await translate(term);res.en=en;
+  const usdaP=(async()=>{
+    if(!en){res.usdaErr="Tõlkimine inglise keelde ei õnnestunud, seega USDA andmebaasist ei otsinud.";return}
+    try{
+      const r=await fetch("https://api.nal.usda.gov/fdc/v1/foods/search?api_key="+encodeURIComponent(usdaKey()),{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({query:en,dataType:["Survey (FNDDS)","SR Legacy","Foundation"],pageSize:12})});
+      if(r.status===429||r.status===403)throw{code:"limit"};if(!r.ok)throw{code:r.status};
+      const j=await r.json();const seen=new Set();
+      res.usda=(j.foods||[]).map(usdaItem).filter(f=>f&&!seen.has(f.name.toLowerCase())&&seen.add(f.name.toLowerCase())).slice(0,8);
+    }catch(e){res.usdaErr=e&&e.code==="limit"?"USDA päringute limiit sai täis. Lisa jaluses oma tasuta USDA võti, siis limiiti praktiliselt pole.":"USDA andmebaas ei vastanud. Proovi uuesti."}
+  })();
+  const offP=(async()=>{
+    try{
+      const r=await fetch("https://world.openfoodfacts.org/cgi/search.pl?"+new URLSearchParams({search_terms:term,search_simple:"1",action:"process",json:"1",page_size:"24",
+        fields:"code,product_name,product_name_et,product_name_en,brands,nutriments,serving_size,serving_quantity,product_quantity,quantity"}));
+      if(!r.ok)throw{code:r.status};
+      const j=await r.json();const seen=new Set();
+      res.off=(j.products||[]).map(offItem).filter(f=>f&&!seen.has(f.name.toLowerCase())&&seen.add(f.name.toLowerCase())).slice(0,8);
+    }catch(e){res.offErr="Poe toodete andmebaas ei vastanud. See lubab vaid mõne otsingu minutis, proovi natukese aja pärast."}
+  })();
+  await Promise.all([usdaP,offP]);webBusy=false;
+  if(!res.usdaErr&&!res.offErr)webCache[term]=res;
+  if(parseQuery($("foodQ").value).words.join(" ")===term&&!picked){showWeb(term,res);
+    if(res.usdaErr||res.offErr){const b=document.createElement("button");b.type="button";b.className="linkbtn";b.textContent="Otsi uuesti";b.onclick=()=>webFetch(term);$("webNote").append(" ",b)}}
 }
 
 /* manual */
@@ -718,6 +769,9 @@ $("weight").onchange=()=>{const w=+$("weight").value;if(w>=30&&w<=250){store.wei
 $("day").onchange=()=>{day=$("day").value||todayStr();render()};
 $("clearDemo").onclick=()=>{store.days[day]={acts:[],foods:[]};save();render()};
 
+try{const k=localStorage.getItem("kb-usda-key");if(k)$("usdaKeyIn").value=k}catch(e){}
+$("usdaKeyIn").onchange=()=>{const v=$("usdaKeyIn").value.trim();try{v?localStorage.setItem("kb-usda-key",v):localStorage.removeItem("kb-usda-key")}catch(e){}
+  $("usdaKeySaved").textContent=v?"Võti salvestatud selles brauseris.":"Kasutusel on demovõti.";for(const k in webCache)delete webCache[k]};
 actHint();render();save();
 </script>
 
