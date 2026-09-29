@@ -1,0 +1,719 @@
+<!doctype html>
+<html lang="et">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Pane kirja liikumine ja söödu, äpp näitab, kui palju kaloreid on veel varu.">
+<title>Kaloribilanss</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: one balance meter up top (burned vs eaten), then two ledgers side by side — Liikumine | Söömine — stacking on phones */
+:root{
+  --bg:#f3f5f4; --surface:#ffffff; --line:#dde3e0; --fg:#18211d; --muted:#5d6a64; --hover:#eef2f0;
+  --burn:#d9531e; --burn-soft:#fbe4d9; --eat:#2f7d57; --eat-soft:#dcefe4;
+  --over:#b3261e; --over-soft:#f8dcd9; --focus:#2b6cb0; --on-accent:#ffffff;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"Figtree", "Segoe UI", system-ui, sans-serif;
+  --f-num:"IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121815; --surface:#1a221e; --line:#2c3732; --fg:#e8eeea; --muted:#9aa8a1; --hover:#222c27;
+  --burn:#f07a45; --burn-soft:#3a2319; --eat:#5cc08c; --eat-soft:#183124;
+  --over:#f2837a; --over-soft:#3c1d1b; --focus:#7fb3ee; --on-accent:#10160f; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121815; --surface:#1a221e; --line:#2c3732; --fg:#e8eeea; --muted:#9aa8a1; --hover:#222c27;
+  --burn:#f07a45; --burn-soft:#3a2319; --eat:#5cc08c; --eat-soft:#183124;
+  --over:#f2837a; --over-soft:#3c1d1b; --focus:#7fb3ee; --on-accent:#10160f; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--f-body);margin:0}
+.wrap{max-width:1040px;margin:0 auto;padding-inline:16px;padding-block:24px 48px;display:flex;flex-direction:column;gap:20px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 20px}
+h1{font:800 clamp(28px,5vw,40px)/1.05 var(--f-display);letter-spacing:-.02em;margin:0;text-wrap:balance}
+.sub{color:var(--muted);margin:4px 0 0;max-width:60ch}
+.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+label.fld{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);min-width:0}
+input,select,button{font:inherit;color:inherit}
+input,select{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0;text-transform:none;letter-spacing:0;font-weight:500;font-size:15px;color:var(--fg)}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.w-num{width:90px}
+
+.balance{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;display:grid;grid-template-columns:1.2fr 1fr;gap:20px 28px}
+@media (max-width:720px){.balance{grid-template-columns:1fr}}
+.verdict{display:flex;flex-direction:column;gap:6px;min-width:0}
+.eyebrow{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.big{font:800 clamp(44px,9vw,72px)/1 var(--f-display);letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.big small{font-size:.35em;font-weight:700;letter-spacing:0;margin-left:6px;color:var(--muted)}
+.big.ok{color:var(--eat)} .big.over{color:var(--over)}
+.verdict p{margin:0;max-width:52ch}
+.equiv{color:var(--muted);font-size:14px}
+.meter{display:flex;flex-direction:column;gap:12px;justify-content:center;min-width:0}
+.row{display:grid;grid-template-columns:88px 1fr auto;gap:10px;align-items:center}
+.row .lab{font-weight:600;font-size:14px}
+.track{height:14px;border-radius:7px;background:var(--bg);border:1px solid var(--line);overflow:hidden}
+.bar{height:100%;border-radius:7px;transition:width .35s ease}
+.bar.burn{background:var(--burn)} .bar.eat{background:var(--eat)} .bar.eat.over{background:var(--over)}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums;font-size:14px;white-space:nowrap}
+
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media (max-width:820px){.cols{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.panel h2{font:700 22px/1.1 var(--f-display);margin:0;display:flex;align-items:center;gap:10px}
+.dot{width:12px;height:12px;border-radius:50%}
+.dot.burn{background:var(--burn)} .dot.eat{background:var(--eat)}
+.step{font:600 12px/1 var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+form.add{display:grid;gap:10px;grid-template-columns:1fr 1fr}
+form.add .full{grid-column:1/-1}
+form.add input,form.add select{width:100%}
+.hint{font-size:13px;color:var(--muted);min-height:1.2em;grid-column:1/-1;margin:0}
+.btn{border:0;border-radius:8px;padding:10px 14px;font-weight:600;cursor:pointer}
+.btn.burn{background:var(--burn);color:var(--on-accent)} .btn.eat{background:var(--eat);color:var(--on-accent)}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.btn.ghost:hover{color:var(--fg);border-color:var(--muted)}
+.btn.small{padding:6px 10px;font-size:14px}
+.btn:disabled{opacity:.55;cursor:default}
+.linkbtn{background:none;border:0;padding:0;color:var(--eat);font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+
+/* food search */
+.search{position:relative;display:flex;flex-direction:column;gap:4px}
+.search input{width:100%;font-size:16px;padding:11px 12px}
+.results{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.results li+li{border-top:1px solid var(--line)}
+.results button{all:unset;box-sizing:border-box;width:100%;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:9px 12px;cursor:pointer}
+.results button:hover,.results button.active{background:var(--hover)}
+.results button:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.r-name{font-weight:600;min-width:0}
+.r-por{display:block;font-size:13px;color:var(--muted);font-weight:400}
+.r-kcal{font-family:var(--f-num);font-size:14px;color:var(--muted);white-space:nowrap}
+.pick{border:1px solid var(--eat);background:var(--eat-soft);border-radius:10px;padding:14px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pick h3{grid-column:1/-1;margin:0;font:700 18px/1.2 var(--f-display);display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.pick .num{font-size:16px;color:var(--eat)}
+.stepper{display:flex;align-items:stretch;gap:0}
+.stepper button{width:40px;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-size:18px;font-weight:600}
+.stepper button:first-child{border-radius:8px 0 0 8px}.stepper button:last-child{border-radius:0 8px 8px 0}
+.stepper input{border-radius:0;border-left:0;border-right:0;text-align:center;width:100%}
+.pick .actions{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap}
+.pick .actions .btn.eat{flex:1}
+.nomatch{font-size:14px;color:var(--muted);display:flex;flex-direction:column;gap:8px}
+.ai{border:1px dashed var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;font-size:14px}
+.ai ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.ai li{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center}
+.manual{display:grid;grid-template-columns:1fr 110px auto;gap:8px;align-items:end}
+@media (max-width:420px){.manual{grid-template-columns:1fr 1fr}.manual .btn{grid-column:1/-1}}
+
+ul.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+ul.list li{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+ul.list li:first-child{border-top:0}
+.it-name{font-weight:600;min-width:0}
+.it-meta{display:block;font-size:13px;color:var(--muted);font-weight:400}
+.it-kcal{font-family:var(--f-num);font-variant-numeric:tabular-nums;white-space:nowrap}
+.qty{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px;font-weight:400;font-size:13px;color:var(--muted)}
+.qb{width:28px;height:28px;border:1px solid var(--line);background:var(--surface);border-radius:6px;cursor:pointer;font-weight:600;line-height:1;color:var(--fg)}
+.qb:hover{border-color:var(--eat);color:var(--eat)}
+.qn{width:56px;padding:4px 6px;font-size:14px;text-align:center}
+.qs{padding:4px 6px;font-size:13px;max-width:100%}
+.qu{min-width:0}
+.linkbtn.edit{font-size:13px;margin-left:6px}
+.qty .btn.small{padding:5px 10px}
+ul.list li.frow{grid-template-columns:auto 1fr auto auto}
+.grip{background:none;border:0;padding:6px 4px;margin-left:-4px;color:var(--muted);cursor:grab;touch-action:none;border-radius:6px;display:flex;align-items:center}
+.grip:hover{color:var(--fg);background:var(--hover)}
+.grip:disabled{opacity:.3;cursor:default}
+li.dragging{background:var(--eat-soft);border-radius:8px;box-shadow:0 2px 10px rgb(0 0 0 / .12);position:relative;z-index:1}
+li.dragging .grip{cursor:grabbing}
+.x{background:none;border:0;color:var(--muted);cursor:pointer;font-size:18px;line-height:1;padding:4px 6px;border-radius:6px}
+.x:hover{color:var(--over);background:var(--over-soft)}
+.empty{color:var(--muted);font-size:14px;padding:10px 0;margin:0}
+.total{display:flex;justify-content:space-between;border-top:2px solid var(--line);padding-top:10px;font-weight:600}
+.total .num{font-size:15px}
+.banner{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;background:var(--eat-soft);border-radius:10px;padding:10px 14px;font-size:14px}
+footer{color:var(--muted);font-size:13px;max-width:75ch}
+@media (prefers-reduced-motion: reduce){.bar{transition:none}}
+.src{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:4px 0 6px}
+footer a{color:inherit}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Kaloribilanss</h1>
+      <p class="sub">Pane kirja, mida ja kui kaua sa liikusid, siis mida sõid. Näed kohe, kui palju kaloreid on veel varu.</p>
+    </div>
+    <div class="controls">
+      <label class="fld" for="day">Päev<input type="date" id="day"></label>
+      <label class="fld" for="weight">Kehakaal, kg<input type="number" id="weight" class="w-num" min="30" max="250" step="0.5" inputmode="decimal"></label>
+    </div>
+  </header>
+
+  <div class="banner" id="demoBanner" hidden>
+    <span>Need on näidisandmed, et näeksid, kuidas äpp töötab.</span>
+    <button class="btn ghost small" id="clearDemo" type="button">Kustuta näited ja alusta</button>
+  </div>
+
+  <section class="balance" aria-live="polite">
+    <div class="verdict">
+      <span class="eyebrow" id="vLabel">Võid veel süüa</span>
+      <div class="big ok" id="vBig">0<small>kcal</small></div>
+      <p id="vText"></p>
+      <p class="equiv" id="vEquiv"></p>
+    </div>
+    <div class="meter">
+      <div class="row"><span class="lab">Kulutatud</span><div class="track"><div class="bar burn" id="bBurn" style="width:0"></div></div><span class="num" id="nBurn">0 kcal</span></div>
+      <div class="row"><span class="lab">Söödud</span><div class="track"><div class="bar eat" id="bEat" style="width:0"></div></div><span class="num" id="nEat">0 kcal</span></div>
+    </div>
+  </section>
+
+  <div class="cols">
+    <section class="panel" aria-labelledby="h-move">
+      <span class="step">1. samm</span>
+      <h2 id="h-move"><span class="dot burn"></span>Liikumine</h2>
+      <form class="add" id="actForm">
+        <label class="fld full" for="actSel">Tegevus
+          <select id="actSel"></select>
+        </label>
+        <label class="fld" for="actMin">Kestus, min<input type="number" id="actMin" min="1" max="1440" step="1" value="45" inputmode="numeric"></label>
+        <div style="display:flex;align-items:flex-end"><button class="btn burn" type="submit" style="width:100%">Lisa tegevus</button></div>
+        <p class="hint" id="actHint"></p>
+      </form>
+      <ul class="list" id="actList"></ul>
+      <div class="total"><span>Kokku kulutatud</span><span class="num" id="actTotal">0 kcal</span></div>
+    </section>
+
+    <section class="panel" aria-labelledby="h-eat">
+      <span class="step">2. samm</span>
+      <h2 id="h-eat"><span class="dot eat"></span>Söömine</h2>
+
+      <div class="search">
+        <label class="fld" for="foodQ">Mida sa sõid või jõid?</label>
+        <input type="search" id="foodQ" autocomplete="off" placeholder="nt 2 õlut, pannkook, sõõrik" aria-controls="foodResults">
+      </div>
+      <ul class="results" id="foodResults" hidden></ul>
+
+      <div class="pick" id="pick" hidden>
+        <h3><span id="pickName"></span><span class="num" id="pickKcal"></span></h3>
+        <label class="fld" for="pickCount">Kogus
+          <div class="stepper"><button type="button" id="cMinus" aria-label="Vähem">−</button><input type="number" id="pickCount" min="0.5" step="0.5" value="1" inputmode="decimal"><button type="button" id="cPlus" aria-label="Rohkem">+</button></div>
+        </label>
+        <label class="fld" for="pickPortion">Ühik<select id="pickPortion"></select></label>
+        <div class="actions"><button class="btn eat" type="button" id="pickAdd">Lisa söödu hulka</button><button class="btn ghost" type="button" id="pickCancel">Tühista</button></div>
+      </div>
+
+      <div class="nomatch" id="noMatch" hidden>
+        <span id="noMatchText"></span>
+      </div>
+
+      <div id="offBox" hidden>
+        <div class="src">Poe tooted · Open Food Facts</div>
+        <ul class="results" id="offResults"></ul>
+        <p class="hint" id="offNote"></p>
+      </div>
+
+      <div>
+        <button class="linkbtn" type="button" id="manualToggle">Sisesta kalorid ise</button>
+        <form class="manual" id="manualForm" hidden style="margin-top:10px">
+          <label class="fld" for="mName">Mida sõid<input type="text" id="mName" placeholder="nt restorani lõuna"></label>
+          <label class="fld" for="mKcal">Kalorid<input type="number" id="mKcal" min="1" step="1" inputmode="numeric"></label>
+          <button class="btn eat" type="submit">Lisa</button>
+        </form>
+      </div>
+
+      <ul class="list" id="foodList"></ul>
+      <p class="hint" id="dragHint" hidden>Järjekorra muutmiseks lohista rida vasakul olevast täpikesest.</p>
+      <div class="total"><span>Kokku söödud</span><span class="num" id="foodTotal">0 kcal</span></div>
+    </section>
+  </div>
+
+  <footer>
+    Kulutus arvutatakse valemiga MET × kehakaal (kg) × tunnid, MET-väärtused on võetud kehalise aktiivsuse kompendiumist. Tulemus on hinnang: tegelik kulu sõltub tempost, vanusest ja vormist. Arvesse on võetud ainult liikumine, mitte keha põhiainevahetus. Äpi nimekirja kalorid on keskmised väärtused. Poe toodete andmed pärinevad avatud andmebaasist <a href="https://world.openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a> (ODbL). Andmed salvestuvad ainult sinu brauserisse.
+  </footer>
+</div>
+
+<script>
+const ACT_G=[
+ ["Kõndimine ja matkamine",[["Jalutamine, aeglane tempo",2.8],["Kõndimine, tavaline tempo",3.5],["Kõndimine, kiire tempo",4.3],["Kõndimine, väga kiire tempo",5.0],["Koeraga jalutamine",3.0],["Kepikõnd",4.8],["Matkamine",6.0],["Mägimatk, tõusudega",7.3],["Trepist üles käimine",8.0]]],
+ ["Jooksmine",[["Sörkjooks, väga rahulik tempo",7.0],["Jooks, rahulik tempo",8.3],["Jooks, keskmine tempo",9.8],["Jooks, kiire tempo",11.0],["Jooks, väga kiire tempo",12.8],["Maastikujooks",9.0],["Intervalljooks",10.0]]],
+ ["Rattasõit",[["Rattasõit, jalutustempo",4.0],["Rattasõit, rahulik tempo",6.8],["Rattasõit, kiire tempo",8.0],["Rattasõit, võistlustempo",10.0],["Maastikurattasõit",8.5],["Trenažöörratas / spinning, rahulik",6.8],["Trenažöörratas / spinning, intensiivne",8.8]]],
+ ["Vees",[["Ujumine, rahulik tempo",5.8],["Ujumine, kiire tempo",9.8],["Vesiaeroobika",5.3],["Aerutamine, kajakk või kanuu",5.0],["SUP-lauaga sõit",6.0]]],
+ ["Golf",[["Golf, kott seljas jalgsi",5.3],["Golf, käruga jalgsi",4.8],["Golf, golfiautoga",3.5],["Golfi löögiharjutus (driving range)",3.0],["Puttamise ja lühimängu harjutus",2.5]]],
+ ["Pallimängud",[["Tennis, üksikmäng",8.0],["Tennis, paarismäng",6.0],["Padel",6.0],["Squash",7.3],["Sulgpall",5.5],["Lauatennis",4.0],["Jalgpall",7.0],["Korvpall",6.5],["Võrkpall",4.0],["Rannavõrkpall",8.0],["Bowling",3.8]]],
+ ["Treening",[["Jõusaal, rahulik tempo",3.5],["Jõusaal, intensiivne",6.0],["Ringtreening",8.0],["HIIT / crossfit",8.0],["Rühmatreening / aeroobika",7.3],["Elliptiline trenažöör",5.0],["Sõudeergomeeter, rahulik tempo",4.8],["Sõudeergomeeter, intensiivne",8.5],["Jooga",2.5],["Pilates",3.0],["Venitamine",2.3]]],
+ ["Talisport",[["Murdmaasuusatamine, rahulik tempo",6.8],["Murdmaasuusatamine, kiire tempo",9.0],["Mäesuusatamine, rahulik",4.3],["Mäesuusatamine, hoogne",8.0],["Lumelauasõit",5.3],["Uisutamine",5.5],["Räätsamatk",5.3]]],
+ ["Muu",[["Rulluisutamine",7.5],["Tantsimine, rahulik",3.0],["Tantsimine, hoogne",7.8],["Ratsutamine",5.5],["Aiatööd",3.8],["Muru niitmine",5.5],["Puude lõhkumine",4.5],["Lume lükkamine",5.3],["Koristamine",3.3]]]
+];
+const ACTS=[];ACT_G.forEach(([,l])=>l.forEach(x=>ACTS.push(x)));
+
+/* [nimi|otsingusõnad, kcal 100 g/ml kohta, [[kogus, g/ml], ...]] — esimene kogus on vaikimisi */
+const F=[
+ ["Rukkileib|leib|must leib|võileib",220,[["viil",30]]],
+ ["Sepik|täisteraleib",240,[["viil",35]]],
+ ["Sai|röstsai|saiaviil",265,[["viil",28]]],
+ ["Võileib singiga|võileib|leib singiga",230,[["võileib",70]]],
+ ["Võileib juustuga|võileib|juustuvõileib",260,[["võileib",65]]],
+ ["Croissant|sarvesai",406,[["tk",60]]],
+ ["Kaerahelbepuder vees|puder|kaerapuder|helbepuder",70,[["kauss",250],["väike kauss",150]]],
+ ["Kaerahelbepuder piimaga|puder|kaerapuder|helbepuder",110,[["kauss",250],["väike kauss",150]]],
+ ["Mannapuder|puder|manna",100,[["kauss",250]]],
+ ["Tatrapuder|puder|tatar",110,[["kauss",200]]],
+ ["Riisipuder|puder",110,[["kauss",250]]],
+ ["Müsli",380,[["portsjon",50]]],
+ ["Hommikuhelbed|helbed|maisihelbed|cornflakes",380,[["kauss",30]]],
+ ["Granola",470,[["portsjon",50]]],
+ ["Muna, keedetud|muna|keedumuna|munad",143,[["muna",55]]],
+ ["Praemuna|praetud muna|muna",196,[["muna",55]]],
+ ["Omlett|munaroog",155,[["portsjon (2 munast)",130],["portsjon (3 munast)",190]]],
+ ["Munapuder|muna",150,[["portsjon (2 munast)",130],["portsjon (3 munast)",190]]],
+ ["Peekon",540,[["viil",15]]],
+ ["Või",740,[["õhuke kiht leival",5],["paks kiht leival",10],["supilusikatäis",14]]],
+ ["Margariin|võie",530,[["kiht leival",8]]],
+ ["Juust",350,[["viil",20]]],
+ ["Sulatatud juust|toorjuust",280,[["kiht leival",20]]],
+ ["Sink|singiviil",110,[["viil",20]]],
+ ["Keeduvorst|doktorivorst|vorst",250,[["viil",20]]],
+ ["Salaami|suitsuvorst|vorst",400,[["viil",10]]],
+ ["Moos|džemm|keedis",250,[["teelusikatäis",10],["supilusikatäis",20]]],
+ ["Mesi",320,[["teelusikatäis",10],["supilusikatäis",20]]],
+ ["Suhkur",400,[["teelusikatäis",5],["tükk",4]]],
+ ["Nutella|šokolaadikreem",540,[["teelusikatäis",15]]],
+ ["Maapähklivõi",590,[["supilusikatäis",16]]],
+
+ ["Pannkook|pannkoogid|ohuke pannkook|pliin",225,[["pannkook",60]]],
+ ["Pannkook moosi ja hapukoorega|pannkoogid",250,[["pannkook",110]]],
+ ["Ameerika pannkook|pancake|pannkoogid",230,[["tk",40]]],
+ ["Vahvel|belgia vahvel",290,[["tk",75]]],
+ ["Sõõrik|donut|sõõrikud",420,[["tk",65]]],
+ ["Berliini sõõrik|berliiner|sõõrik",340,[["tk",70]]],
+ ["Kaneelisai|kaneelirull|saiake",360,[["tk",90]]],
+ ["Kukkel|magus saiake|saiake|stritsel",330,[["tk",70]]],
+ ["Pirukas lihaga|lihapirukas|pirukas",290,[["tk",80]]],
+ ["Pirukas kapsaga|kapsapirukas|pirukas",240,[["tk",80]]],
+ ["Pirukas singi ja juustuga|pirukas",300,[["tk",90]]],
+ ["Muffin|kook",420,[["tk",100]]],
+ ["Kringel|kaneelikringel",380,[["viil",60]]],
+ ["Tort|koorekook|kook",350,[["tükk",120]]],
+ ["Juustukook|cheesecake|kook",320,[["tükk",120]]],
+ ["Õunakook|õunapirukas|kook",260,[["tükk",120]]],
+ ["Brownie|šokolaadikook|kook",450,[["tk",60]]],
+ ["Küpsis|küpsised|präänik",480,[["küpsis",10]]],
+ ["Kohuke|kohukesed",390,[["tk",40]]],
+ ["Kohupiimakreem|kreem",170,[["topsik",150]]],
+ ["Šokolaad|šokolaaditahvel",540,[["rida",20],["tahvel",100]]],
+ ["Šokolaadikomm|komm|kommid|šokolaadikommid",500,[["komm",12]]],
+ ["Kummikommid|komm|kommid",340,[["peotäis",30]]],
+ ["Jäätis|jäätisepall",207,[["pall",70],["kauss",150]]],
+ ["Pulgajäätis|jäätis|eskimo",280,[["tk",70]]],
+ ["Jäätisetuutu|jäätis|vahvlitops",250,[["tk",110]]],
+ ["Kissell",60,[["klaas",200]]],
+ ["Mannavaht|vahupuder",110,[["kauss",200]]],
+
+ ["Piim|piima",52,[["klaas (0,25 l)",250],["portsjon kohvi sisse (3 cl)",30]]],
+ ["Keefir|hapupiim|petipiim",50,[["klaas (0,25 l)",250],["pakk (0,5 l)",500]]],
+ ["Jogurt|maitsestatud jogurt",90,[["topsik",150],["suur topsik (0,4 kg)",400]]],
+ ["Kreeka jogurt|jogurt",130,[["topsik",150]]],
+ ["Kodujuust",100,[["karp",200],["supilusikatäis",30]]],
+ ["Kohupiim",110,[["pakk",200]]],
+ ["Hapukoor",205,[["supilusikatäis",20],["teelusikatäis",7]]],
+ ["Vahukoor|koor",340,[["supilusikatäis",15]]],
+
+ ["Banaan",89,[["tk",120]]],["Õun",52,[["tk",180]]],["Pirn",57,[["tk",170]]],["Apelsin",47,[["tk",150]]],["Mandariin|mandariinid",53,[["tk",80]]],
+ ["Viinamarjad",69,[["peotäis",100],["kobar",250]]],["Arbuus",30,[["viil",300]]],["Melon",34,[["viil",200]]],["Maasikad|maasikas",32,[["kauss",150]]],
+ ["Mustikad|mustikas|marjad",57,[["peotäis",100]]],["Ananass",50,[["portsjon",150]]],["Kiivi",61,[["tk",75]]],["Avokaado",160,[["tk",150],["pool",75]]],
+ ["Rosinad",300,[["peotäis",30]]],["Datlid",280,[["tk",8]]],
+ ["Köögiviljasalat|salat|roheline salat",20,[["kauss",150]]],["Tomat",18,[["tk",100]]],["Kurk",15,[["tk",150]]],["Porgand",41,[["tk",70]]],
+ ["Paprika",26,[["tk",150]]],["Brokoli",35,[["portsjon",150]]],["Maisitõlvik|mais",96,[["tk",200]]],["Hapukapsas|kapsas",25,[["portsjon",150]]],
+ ["Hautatud kapsas|kapsas|mulgikapsad",60,[["portsjon",150]]],
+
+ ["Kartul, keedetud|kartul|keedukartul|kartulid",87,[["kartul",80],["portsjon",200]]],
+ ["Kartulipuder|puder",105,[["portsjon",200]]],
+ ["Praekartul|praetud kartul|kartul",150,[["portsjon",200]]],
+ ["Friikartulid|friikad|kartul",312,[["väike portsjon",80],["keskmine portsjon",120],["suur portsjon",160]]],
+ ["Kartulisalat|rosolje|salat",170,[["portsjon",200]]],
+ ["Riis|keedetud riis",130,[["portsjon",180]]],
+ ["Pasta|makaronid|spagetid|nuudlid",158,[["portsjon",200]]],
+ ["Tatar|keedetud tatar",110,[["portsjon",180]]],
+ ["Kuskuss",112,[["portsjon",180]]],["Bulgur",83,[["portsjon",180]]],
+
+ ["Kanafilee|kana|kanarind|broiler",165,[["portsjon",150]]],
+ ["Kanakoib|kana",215,[["koib",120]]],
+ ["Kanatiivad|kana|tiivad",290,[["tiib",40]]],
+ ["Kananagitsad|nagitsad|nuggets|kana",280,[["tk",18]]],
+ ["Grillkana|ahjukana|kana",215,[["veerand kana",250],["pool kana",500]]],
+ ["Sealiha, praetud|sealiha|seapraad|praad",250,[["portsjon",150]]],
+ ["Paneeritud karbonaad|karbonaad|šnitsel",290,[["tk",150]]],
+ ["Šašlõkk|šašlõk|grillliha",230,[["portsjon",200]]],
+ ["Veisesteik|steik|biifsteek",250,[["steik",200]]],
+ ["Hakklihakotlet|kotlet|kotletid",240,[["tk",100]]],
+ ["Lihapallid|frikadellid",230,[["pall",25]]],
+ ["Sült",170,[["portsjon",150]]],
+ ["Verivorst|vorst",280,[["tk",100]]],
+ ["Viiner|viinerid|vorst",280,[["tk",50]]],
+ ["Grillvorst|vorst",300,[["tk",100]]],
+ ["Lõhe|kala",208,[["portsjon",150]]],
+ ["Räim, praetud|räim|kala",200,[["portsjon",150]]],
+ ["Heeringas|kala|soolaheeringas",220,[["tükk",60]]],
+ ["Kalapulgad|kala",220,[["tk",25]]],
+ ["Tuunikala|kala|tuunikalakonserv",110,[["purk",120]]],
+ ["Krevetid",100,[["portsjon",100]]],
+ ["Spagetti bolognese|pasta|spagetid",150,[["taldrik",350]]],
+ ["Lasanje",170,[["portsjon",300]]],
+ ["Makaronid hakklihaga|pasta|makaronid",160,[["taldrik",300]]],
+ ["Plov",170,[["taldrik",300]]],
+ ["Pelmeenid",250,[["portsjon (15 tk)",250]]],
+ ["Kapsarullid",140,[["rull",120]]],
+
+ ["Hernesupp|supp",70,[["taldrik",300],["kauss",250]]],
+ ["Seljanka|supp|soljanka",80,[["taldrik",300],["kauss",250]]],
+ ["Kanasupp|supp|kanapuljong",45,[["taldrik",300],["kauss",250]]],
+ ["Köögiviljasupp|supp",40,[["taldrik",300],["kauss",250]]],
+ ["Borš|supp",50,[["taldrik",300],["kauss",250]]],
+ ["Koorene seenesupp|supp|seenesupp",80,[["taldrik",300],["kauss",250]]],
+ ["Lõhesupp|supp|kalasupp",90,[["taldrik",300],["kauss",250]]],
+ ["Kõrvitsasupp|supp",60,[["taldrik",300],["kauss",250]]],
+
+ ["Pitsa|pizza",266,[["viil",110],["väike pitsa",350],["suur pitsa",700]]],
+ ["Hamburger|burger",250,[["tk",220]]],
+ ["Juustuburger|burger|cheeseburger",260,[["tk",120]]],
+ ["Hot dog|hotdog|viinerisai",250,[["tk",140]]],
+ ["Kebab|tortilla|wrap|rullo",220,[["tk",300]]],
+ ["Šaverma|shawarma|kebab",210,[["tk",350]]],
+ ["Burrito",210,[["tk",300]]],
+ ["Sushi",150,[["tükk",30],["rull (8 tükki)",240]]],
+ ["Wok|nuudlid|wokk",150,[["karp",350]]],
+ ["Kiirnuudlid|nuudlid",450,[["pakk",85]]],
+ ["Caesari salat|salat|caesar",150,[["portsjon",300]]],
+ ["Kreeka salat|salat|kreeka",130,[["portsjon",250],["väike portsjon",150]]],
+ ["Kreeka salat ilma õlita|salat|kreeka",75,[["portsjon",250],["väike portsjon",150]]],
+ ["Tomati-kurgisalat hapukoorega|salat|kurgisalat|tomatisalat",60,[["portsjon",150]]],
+ ["Kapsasalat|salat|coleslaw",90,[["portsjon",150]]],
+ ["Tuunikalasalat|salat",120,[["portsjon",250]]],
+ ["Kanasalat|salat",140,[["portsjon",250]]],
+ ["Nachod|nachos",330,[["portsjon",150]]],
+
+ ["Pähklid|pähkel",600,[["peotäis",30]]],["Maapähklid|pähklid",570,[["peotäis",30]]],["Krõpsud|krõps|kartulikrõpsud",536,[["peotäis",30],["pakk",150]]],
+ ["Popkorn|popcorn",500,[["kauss",30],["kinokott",100]]],["Kreekerid|soolaküpsised",450,[["portsjon",30]]],["Proteiinibatoon|batoon",350,[["tk",60]]],
+ ["Müslibatoon|batoon",400,[["tk",25]]],["Riisigalett|galett",390,[["tk",9]]],["Hummus",170,[["supilusikatäis",30]]],["Oliivid",115,[["peotäis",30]]],
+ ["Majonees",680,[["supilusikatäis",15],["teelusikatäis",5]]],["Ketšup",110,[["supilusikatäis",15]]],["Sinep",70,[["teelusikatäis",5]]],
+ ["Oliiviõli|õli",884,[["supilusikatäis",14]]],["Salatikaste|kaste",400,[["portsjon",30]]],["Küüslaugukaste|kaste",300,[["supilusikatäis",15]]],
+
+ ["Vesi|vett|mineraalvesi|kraanivesi",0,[["klaas",250],["pudel (0,5 l)",500]]],
+ ["Kohv, must|kohv|must kohv",2,[["tass",200],["kruus",300]]],
+ ["Espresso|kohv",2,[["tass",30]]],
+ ["Kohv piima ja suhkruga|kohv",30,[["tass",200],["kruus",300]]],
+ ["Cappuccino|kohv",40,[["tass",200],["suur tass",350]]],
+ ["Latte|kohv|caffe latte",50,[["tass",300],["suur tass",450]]],
+ ["Tee|must tee|roheline tee",1,[["tass",250]]],
+ ["Tee suhkruga|tee",16,[["tass",250]]],
+ ["Kakao|kuum šokolaad",80,[["tass",250]]],
+ ["Coca-Cola|koola|kokakoola|limonaad|karastusjook|fanta|sprite",42,[["purk (0,33 l)",330],["pudel (0,5 l)",500],["klaas (0,2 l)",200],["pudel (1,5 l)",1500]]],
+ ["Suhkruvaba karastusjook|zero|light|koola",0.3,[["purk (0,33 l)",330],["pudel (0,5 l)",500]]],
+ ["Apelsinimahl|mahl",45,[["klaas (0,2 l)",200],["pakk (1 l)",1000]]],
+ ["Õunamahl|mahl",46,[["klaas (0,2 l)",200],["pakk (1 l)",1000]]],
+ ["Smuuti|smoothie",60,[["pudel (0,25 l)",250],["klaas (0,3 l)",300]]],
+ ["Energiajook|red bull|monster",45,[["purk (0,25 l)",250],["purk (0,5 l)",500]]],
+ ["Spordijook|isotooniline jook",25,[["pudel (0,5 l)",500]]],
+ ["Proteiinijook|proteiinikokteil",60,[["pudel (0,33 l)",330]]],
+ ["Kali|kalja",35,[["pudel (0,5 l)",500],["klaas (0,3 l)",300]]],
+
+ ["Õlu|lager|pilsner|heledat",43,[["pudel (0,33 l)",330],["pint (0,5 l)",500],["klaas (0,4 l)",400]]],
+ ["Tume õlu|õlu|porter",55,[["pudel (0,33 l)",330],["pint (0,5 l)",500]]],
+ ["Nisuõlu|õlu|weissbier",50,[["pudel (0,5 l)",500],["klaas (0,33 l)",330]]],
+ ["IPA|õlu|käsitööõlu",60,[["pudel (0,33 l)",330],["pint (0,5 l)",500]]],
+ ["Alkoholivaba õlu|õlu|0,0",20,[["pudel (0,33 l)",330],["pudel (0,5 l)",500]]],
+ ["Punane vein|vein|veini|punast veini",85,[["klaas (0,15 l)",150],["pudel (0,75 l)",750]]],
+ ["Valge vein|vein|valget veini",82,[["klaas (0,15 l)",150],["pudel (0,75 l)",750]]],
+ ["Roosa vein|vein|rosé",80,[["klaas (0,15 l)",150],["pudel (0,75 l)",750]]],
+ ["Vahuvein|šampanja|prosecco|cava",75,[["pokaal (0,12 l)",120],["pudel (0,75 l)",750]]],
+ ["Siider",45,[["pudel (0,33 l)",330],["pudel (0,5 l)",500]]],
+ ["Long drink|lonkero|gin long drink",70,[["purk (0,33 l)",330],["purk (0,5 l)",500]]],
+ ["Viin, viski, konjak või muu kange alkohol|viin|viski|konjak|rumm|džinn|brändi|tekiila|kange alkohol",231,[["pits (4 cl)",40],["topelt (8 cl)",80]]],
+ ["Liköör|vana tallinn|baileys",330,[["pits (4 cl)",40]]],
+ ["Džinn toonikuga|gin tonic|džinn",70,[["klaas",250]]],
+ ["Aperol spritz|spritz|kokteil",60,[["klaas",200]]],
+ ["Mojito|kokteil",90,[["klaas",300]]],
+ ["Hõõgvein|glögi",100,[["tass (0,2 l)",200]]]
+];
+const norm=s=>s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9 ]+/g," ").replace(/\s+/g," ").trim();
+const FOODS=F.map(([n,k,p])=>{const names=n.split("|");return{name:names[0],kcal:k,portions:p,
+  main:norm(names[0]).split(" "),alias:norm(names.slice(1).join(" ")).split(" ").filter(Boolean),full:norm(names[0])}});
+
+const NUMWORDS={uks:1,yks:1,kaks:2,kolm:3,neli:4,viis:5,kuus:6,seitse:7,kaheksa:8,pool:0.5,poolteist:1.5};
+function parseQuery(q){
+  let count=null;const words=[];
+  norm(q.replace(/(\d),(\d)/g,"$1.$2").replace(/(\d)\.(\d)/g,"$1dot$2")).split(" ").forEach(w=>{
+    if(/^\d+(dot\d+)?$/.test(w)&&count===null){count=parseFloat(w.replace("dot","."));return}
+    if(NUMWORDS[w]!==undefined&&count===null){count=NUMWORDS[w];return}
+    if(w.length>=2&&!/^(ja|ning|ka|ning|tk|tukki|viilu|klaasi|pudelit|pudel|klaas|tass|tassi|kg|g|l|ml)$/.test(w))words.push(w);
+  });
+  return{count,words};
+}
+function scoreFood(f,words){
+  let total=0,hit=0;
+  for(const w of words){
+    const stem=w.length>6?w.slice(0,w.length-2):w.length>4?w.slice(0,w.length-1):w;
+    let s=0;
+    const sh=w.length>=3?w.slice(0,w.length-1):w;
+    for(const m of f.main){if(m===w||m===stem||m===sh)s=Math.max(s,8);else if(m.startsWith(w))s=Math.max(s,5);else if(m.startsWith(sh)&&m.length<=sh.length+1)s=Math.max(s,4);else if(m.startsWith(stem))s=Math.max(s,4);else if(stem.length>=4&&m.includes(stem))s=Math.max(s,2)}
+    for(const a of f.alias){if(a===w||a===stem||a===sh)s=Math.max(s,4);else if(a.startsWith(stem))s=Math.max(s,3);else if(stem.length>=4&&a.includes(stem))s=Math.max(s,1)}
+    if(s){hit++;total+=s}
+  }
+  if(!hit)return 0;
+  if(f.full.startsWith(words.join(" ")))total+=1;
+  return total+(hit===words.length?10:0);
+}
+function search(q){
+  const {count,words}=parseQuery(q);if(!words.length)return{count,items:[]};
+  const items=FOODS.map(f=>[f,scoreFood(f,words)]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]||a[0].name.length-b[0].name.length);
+  const best=items.length?items[0][1]:0;
+  return{count,items:items.filter(x=>x[1]>=Math.min(best,10)).slice(0,8).map(x=>x[0])};
+}
+
+const EQUIV=[[107,"banaani"],[66,"viilu rukkileiba"],[142,"pudelit õlut"]];
+const $=id=>document.getElementById(id);
+const fmt=n=>Math.round(n).toLocaleString("et-EE");
+const fmtN=n=>n.toLocaleString("et-EE",{maximumFractionDigits:1});
+const todayStr=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
+const KEY="kaloribilanss-v1";
+
+let store={weight:80,days:{}};
+try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.days)store=s}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(store))}catch(e){}};
+
+let editIdx=-1,draft=null;
+const PART={tass:"tassi",kruus:"kruusi",klaas:"klaasi",pudel:"pudelit",purk:"purki",pint:"pinti",pits:"pitsi",pokaal:"pokaali",karp:"karpi",pakk:"pakki",kauss:"kaussi",taldrik:"taldrikut",portsjon:"portsjonit",tükk:"tükki",viil:"viilu",võileib:"võileiba",kartul:"kartulit",koib:"koiba",tiib:"tiiba",komm:"kommi",küpsis:"küpsist",pall:"palli",pannkook:"pannkooki",peotäis:"peotäit",rull:"rulli",steik:"steiki",supilusikatäis:"supilusikatäit",teelusikatäis:"teelusikatäit",topsik:"topsikut",kiht:"kihti",tahvel:"tahvlit",kobar:"kobarat",kinokott:"kinokotti",pitsa:"pitsat",muna:"muna",rida:"rida",tk:"tk",topelt:"topelt",veerand:"veerandit",pool:"poolt"};
+const ADJ={väike:"väikest",suur:"suurt",keskmine:"keskmist",õhuke:"õhukest",paks:"paksu",terve:"tervet"};
+function qtyText(c,label){
+  const n=fmtN(c);if(label==="100 g")return fmtN(c*100)+" g";if(c===1)return "1 "+label;
+  const m=/^([^(]*?)(\s*\(.*\))?$/.exec(label);const words=m[1].trim().split(" ");const rest=m[2]||"";
+  if(ADJ[words[0]]&&words[1]&&PART[words[1]]){words[0]=ADJ[words[0]];words[1]=PART[words[1]]}
+  else if(PART[words[0]])words[0]=PART[words[0]];
+  else return `${n} × ${label}`;
+  return `${n} ${words.join(" ")}${rest}`;
+}
+function unitText(c,label){if(label==="100 g")return "× 100 g";const t=qtyText(c,label);const n=fmtN(c);
+  if(t.startsWith(n+" × "))return label;return t.slice(n.length+1)}
+const REV={};Object.entries(PART).forEach(([k,v])=>REV[v]=k);
+/* "2 tassi kohvi" kujul ühik → kogus 2, ühik "tass kohvi" */
+function normEntry(f){
+  const m=/^(\d+(?:[.,]\d+)?)\s+(\S+)(.*)$/.exec(f.unit||"");
+  if(m&&!f.portions){const n=parseFloat(m[1].replace(",","."));const w=REV[m[2]]||(PART[m[2]]?m[2]:null);
+    if(n>0&&w){f.count=f.count*n;f.unitKcal=f.unitKcal/n;f.unit=w+m[3]}}
+  return f}
+function entryFrom(f,count,pi){const portions=f.portions.map(([l,g])=>[l,f.kcal*g/100]);
+  const e={name:f.name,count,pi,unit:portions[pi][0],unitKcal:portions[pi][1],portions};if(f.src)e.src=f.src;return e}
+function fromDb(name,count,pi){return entryFrom(FOODS.find(x=>x.name===name),count,pi)}
+const fk=f=>f.count*f.unitKcal;
+/* vanad kirjed uude kujusse */
+Object.values(store.days).forEach(d=>(d.foods||[]).forEach(f=>{if(f.count!==undefined)return;
+  const m=/^([\d.,]+) × (.+)$/.exec(f.desc||"");const c=m?parseFloat(m[1].replace(",",".")):1;
+  f.count=c||1;f.unit=m?m[2]:(f.desc||"");f.unitKcal=f.kcal/f.count;
+  const db=FOODS.find(x=>x.name===f.name);if(db&&m){const i=db.portions.findIndex(p=>p[0]===m[2]);if(i>=0){f.portions=db.portions.map(([l,g])=>[l,db.kcal*g/100]);f.pi=i}}}));
+Object.values(store.days).forEach(d=>(d.foods||[]).forEach(normEntry));
+let day=todayStr();
+const firstRun=!Object.keys(store.days).length;
+if(firstRun||(store.days[day]&&store.days[day].demo)){
+  store.days[day]={demo:true,acts:[
+    {name:"Golf, käruga jalgsi",met:4.8,min:240},
+    {name:"Kõndimine, kiire tempo",met:4.3,min:30}],
+   foods:[
+    fromDb("Pannkook moosi ja hapukoorega",2,0),fromDb("Sõõrik",1,0),fromDb("Hamburger",1,0),fromDb("Õlu",2,0)]};
+}
+const cur=()=>store.days[day]||(store.days[day]={acts:[],foods:[]});
+const kcalAct=a=>a.met*store.weight*a.min/60;
+function addFood(entry){const d=cur();delete d.demo;d.foods.push(normEntry(entry));save();render()}
+
+/* activity form */
+ACT_G.forEach(([g,l])=>{const og=document.createElement("optgroup");og.label=g;l.forEach(x=>og.append(new Option(x[0],ACTS.indexOf(x))));$("actSel").append(og)});
+$("day").value=day;$("weight").value=store.weight;
+function actHint(){const m=ACTS[$("actSel").value][1];const min=+$("actMin").value||0;
+  $("actHint").textContent=min?`≈ ${fmt(m*store.weight*min/60)} kcal (${fmt(m*store.weight)} kcal tunnis sinu kaaluga)`:""}
+
+/* food search */
+let results=[],active=0,picked=null,qCount=null;
+function showResults(){
+  const q=$("foodQ").value.trim();const ul=$("foodResults");ul.innerHTML="";
+  $("noMatch").hidden=true;
+  if(!q){ul.hidden=true;$("offBox").hidden=true;return}
+  const r=search(q);results=r.items;qCount=r.count;active=0;
+  if(results.length){
+    results.forEach((f,i)=>{const [pl,pg]=f.portions[0];const li=document.createElement("li");const b=document.createElement("button");b.type="button";
+      b.innerHTML='<span class="r-name"><span></span><span class="r-por"></span></span><span class="r-kcal"></span>';
+      b.querySelector(".r-name span").textContent=f.name;
+      b.querySelector(".r-por").textContent=f.portions.map(p=>p[0]).join(" · ");
+      b.querySelector(".r-kcal").textContent=`${fmt(f.kcal*pg/100)} kcal / ${pl}`;
+      if(i===0)b.classList.add("active");
+      b.onclick=()=>choose(f);li.append(b);ul.append(li)});
+    ul.hidden=false;
+  }else{ul.hidden=true;$("noMatch").hidden=false;$("noMatchText").textContent=`„${q}” ei ole äpi nimekirjas. Vaata allpool poe tooteid või sisesta kalorid ise.`}
+  offSearch(q);
+}
+function choose(f){
+  picked=f;$("pick").hidden=false;$("foodResults").hidden=true;$("noMatch").hidden=true;$("offBox").hidden=true;
+  $("pickName").textContent=f.name;const s=$("pickPortion");s.innerHTML="";
+  f.portions.forEach(([l,g],i)=>s.add(new Option(`${l} · ${fmt(f.kcal*g/100)} kcal`,i)));
+  $("pickCount").value=qCount&&qCount>0?qCount:1;pickCalc();$("pickAdd").focus();
+}
+function pickCalc(){if(!picked)return;const [,g]=picked.portions[$("pickPortion").value];const c=+$("pickCount").value||0;
+  [...$("pickPortion").options].forEach((o,j)=>{const [l,gg]=picked.portions[j];o.textContent=`${unitText(c||1,l)} · ${fmt(picked.kcal*gg/100)} kcal/tk`});
+  $("pickKcal").textContent=fmt(picked.kcal*g/100*c)+" kcal";return picked.kcal*g/100*c}
+function resetFood(){picked=null;$("pick").hidden=true;$("foodQ").value="";showResults();$("foodQ").focus()}
+$("foodQ").addEventListener("input",()=>{if(picked){picked=null;$("pick").hidden=true}showResults()});
+$("foodQ").addEventListener("keydown",e=>{
+  const btns=[...$("foodResults").querySelectorAll("button")];
+  if(e.key==="ArrowDown"||e.key==="ArrowUp"){if(!btns.length)return;e.preventDefault();btns[active]?.classList.remove("active");
+    active=(active+(e.key==="ArrowDown"?1:-1)+btns.length)%btns.length;btns[active].classList.add("active")}
+  if(e.key==="Enter"){e.preventDefault();if(results[active])choose(results[active]);else if(offItems[0])choose(offItems[0])}
+});
+$("pickPortion").onchange=pickCalc;$("pickCount").oninput=pickCalc;
+$("cMinus").onclick=()=>{const c=Math.max(0.5,(+$("pickCount").value||1)-(+$("pickCount").value>1?1:0.5));$("pickCount").value=c;pickCalc()};
+$("cPlus").onclick=()=>{const v=+$("pickCount").value||0;$("pickCount").value=v<1?1:v+1;pickCalc()};
+$("pickAdd").onclick=()=>{const k=pickCalc();const c=+$("pickCount").value;if(!(c>0))return;
+  addFood(entryFrom(picked,c,+$("pickPortion").value));resetFood()};
+$("pickCancel").onclick=resetFood;
+
+/* Open Food Facts: poe tooted reaalajas */
+const offCache={};let offTimer=null,offCtl=null,offItems=[];
+function offItem(p){
+  const n=p.nutriments||{};let k=n["energy-kcal_100g"];
+  if((k===undefined||k===null||k==="")&&n["energy_100g"]!=null)k=n["energy_100g"]/4.184;
+  k=+k;if(!isFinite(k)||k<0||k>950)return null;
+  const name=String(p.product_name_et||p.product_name||p.product_name_en||"").trim();if(!name)return null;
+  const portions=[];const pq=+p.product_quantity,sq=+p.serving_quantity;
+  if(sq>0)portions.push([`portsjon (${String(p.serving_size||fmt(sq)+" g").trim()})`,sq]);
+  if(pq>0&&pq!==sq&&pq<=5000)portions.push([`pakk (${String(p.quantity||fmt(pq)+" g").trim()})`,pq]);
+  portions.push(["100 g",100]);
+  const brand=p.brands?String(p.brands).split(",")[0].trim():"";
+  return{name:brand&&!name.toLowerCase().includes(brand.toLowerCase())?`${name} (${brand})`:name,kcal:k,portions,src:"Open Food Facts"};
+}
+function renderOff(items){
+  offItems=items;const ul=$("offResults");ul.innerHTML="";
+  if(!items.length){ul.hidden=true;$("offNote").textContent="Poe toodetest vasteid ei leitud.";return}
+  ul.hidden=false;$("offNote").textContent="";
+  items.forEach(f=>{const [pl,pg]=f.portions[0];const li=document.createElement("li");const b=document.createElement("button");b.type="button";
+    b.innerHTML='<span class="r-name"><span></span><span class="r-por"></span></span><span class="r-kcal"></span>';
+    b.querySelector(".r-name span").textContent=f.name;
+    b.querySelector(".r-por").textContent=`${fmt(f.kcal)} kcal 100 g kohta`;
+    b.querySelector(".r-kcal").textContent=pl==="100 g"?`${fmt(f.kcal)} kcal / 100 g`:`${fmt(f.kcal*pg/100)} kcal / ${pl.split(" (")[0]}`;
+    b.onclick=()=>choose(f);li.append(b);ul.append(li)});
+}
+function offSearch(q){
+  clearTimeout(offTimer);const box=$("offBox");const term=parseQuery(q).words.join(" ");
+  if(term.length<3){box.hidden=true;offItems=[];return}
+  box.hidden=false;
+  if(offCache[term]){renderOff(offCache[term]);return}
+  $("offResults").innerHTML="";$("offResults").hidden=true;$("offNote").textContent="Otsin poe toodetest…";offItems=[];
+  offTimer=setTimeout(async()=>{
+    offCtl?.abort();offCtl=new AbortController();
+    const url="https://world.openfoodfacts.org/cgi/search.pl?"+new URLSearchParams({search_terms:term,search_simple:"1",action:"process",json:"1",page_size:"24",
+      fields:"code,product_name,product_name_et,product_name_en,brands,nutriments,serving_size,serving_quantity,product_quantity,quantity"});
+    try{
+      const r=await fetch(url,{signal:offCtl.signal});
+      if(r.status===429)throw{code:429};if(!r.ok)throw{code:r.status};
+      const j=await r.json();const seen=new Set();
+      const items=(j.products||[]).map(offItem).filter(f=>f&&!seen.has(f.name.toLowerCase())&&seen.add(f.name.toLowerCase())).slice(0,8);
+      offCache[term]=items;
+      if(parseQuery($("foodQ").value).words.join(" ")===term&&!picked)renderOff(items);
+    }catch(e){
+      if(e&&e.name==="AbortError")return;
+      $("offNote").textContent=e&&e.code===429?"Poe toodete andmebaas on hetkel hõivatud. Proovi minuti pärast uuesti.":"Poe toodete otsing ei õnnestunud. Kontrolli internetiühendust.";
+    }
+  },700);
+}
+
+/* manual */
+$("manualToggle").onclick=()=>{const f=$("manualForm");f.hidden=!f.hidden;if(!f.hidden){$("mName").value=$("mName").value||$("foodQ").value;$("mKcal").focus()}};
+$("manualForm").onsubmit=e=>{e.preventDefault();const k=+$("mKcal").value;if(!(k>0)){$("mKcal").focus();return}
+  addFood({name:$("mName").value.trim()||"Muu toit",count:1,unit:"portsjon",unitKcal:k});$("mName").value="";$("mKcal").value="";$("manualForm").hidden=true};
+
+let drag=null;
+function startDrag(e,li,grip){
+  if(editIdx>=0||e.button>0)return;e.preventDefault();
+  try{grip.setPointerCapture(e.pointerId)}catch(_){}
+  drag={li};li.classList.add("dragging");
+  grip.onpointermove=ev=>{if(!drag)return;const ul=li.parentNode;
+    const prev=li.previousElementSibling,next=li.nextElementSibling;
+    if(prev&&ev.clientY<prev.getBoundingClientRect().top+prev.offsetHeight/2)ul.insertBefore(li,prev);
+    else if(next&&ev.clientY>next.getBoundingClientRect().top+next.offsetHeight/2)ul.insertBefore(next,li)};
+  const end=()=>{if(!drag)return;grip.onpointermove=null;li.classList.remove("dragging");
+    const order=[...li.parentNode.querySelectorAll("li.frow")].map(x=>+x.dataset.idx);drag=null;
+    const dd=cur();if(order.some((v,k)=>v!==k)){dd.foods=order.map(k=>dd.foods[k]);save()}render()};
+  grip.onpointerup=end;grip.onpointercancel=end;
+}
+function render(){
+  const d=cur();$("demoBanner").hidden=!d.demo;
+  const al=$("actList");al.innerHTML="";
+  if(!d.acts.length)al.innerHTML='<li style="display:block"><p class="empty">Selle päeva tegevusi pole veel. Vali tegevus ja kestus ning vajuta „Lisa tegevus”.</p></li>';
+  let burned=0;
+  d.acts.forEach((a,i)=>{const k=kcalAct(a);burned+=k;const li=document.createElement("li");
+    li.innerHTML=`<span class="it-name"></span><span class="it-kcal">${fmt(k)} kcal</span><button class="x" aria-label="Eemalda">×</button>`;
+    li.firstChild.textContent=a.name;const m=document.createElement("span");m.className="it-meta";m.textContent=`${a.min} min`;li.firstChild.append(m);
+    li.querySelector("button").onclick=()=>{d.acts.splice(i,1);save();render()};al.append(li)});
+  const fl=$("foodList");fl.innerHTML="";
+  if(!d.foods.length)fl.innerHTML='<li style="display:block"><p class="empty">Söödut pole veel lisatud. Kirjuta otsingusse, mida sõid.</p></li>';
+  let eaten=0;$("dragHint").hidden=d.foods.length<2;
+  d.foods.forEach((f,i)=>{const k=fk(f);eaten+=k;const li=document.createElement("li");
+    const editing=editIdx===i;
+    li.className="frow";li.dataset.idx=i;
+    li.innerHTML=`<button type="button" class="grip" aria-label="Liiguta: lohista või kasuta nooleklahve" title="Lohista, et järjekorda muuta"><svg viewBox="0 0 10 16" width="10" height="16" aria-hidden="true"><g fill="currentColor"><circle cx="2" cy="2" r="1.5"/><circle cx="8" cy="2" r="1.5"/><circle cx="2" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="2" cy="14" r="1.5"/><circle cx="8" cy="14" r="1.5"/></g></svg></button><span class="it-name"><span class="fname"></span><span class="it-meta"></span></span><span class="it-kcal"></span><button class="x" aria-label="Eemalda">×</button>`;
+    li.querySelector(".fname").textContent=f.name;
+    const grip=li.querySelector(".grip");grip.id="grip"+i;grip.disabled=editIdx>=0;
+    grip.onpointerdown=e=>startDrag(e,li,grip);
+    grip.onkeydown=e=>{const t=e.key==="ArrowUp"?i-1:e.key==="ArrowDown"?i+1:null;if(t===null||t<0||t>=d.foods.length)return;
+      e.preventDefault();const [it]=d.foods.splice(i,1);d.foods.splice(t,0,it);save();render();document.getElementById("grip"+t)?.focus()};
+    const meta=li.querySelector(".it-meta"),kc=li.querySelector(".it-kcal");
+    if(!editing){
+      meta.textContent=qtyText(f.count,f.unit)+(f.src?" · "+f.src:"")+" ";
+      const eb=document.createElement("button");eb.type="button";eb.className="linkbtn edit";eb.textContent="Muuda";
+      eb.onclick=()=>{editIdx=i;draft={count:f.count,pi:f.pi};render();document.getElementById("qn"+i)?.focus()};
+      meta.append(eb);kc.textContent=fmt(k)+" kcal";
+    }else{
+      const uk=f.portions?f.portions[draft.pi][1]:f.unitKcal;
+      kc.textContent=fmt(draft.count*uk)+" kcal";
+      const box=document.createElement("span");box.className="qty";
+      box.innerHTML=`<button type="button" class="qb" aria-label="Vähem">−</button><input type="number" class="qn" id="qn${i}" min="0.5" step="0.5" inputmode="decimal" aria-label="Kogus"><button type="button" class="qb" aria-label="Rohkem">+</button>`;
+      const qn=box.querySelector(".qn");qn.value=draft.count;
+      const [minus,plus]=box.querySelectorAll(".qb");
+      minus.onclick=()=>{draft.count=draft.count>1?draft.count-1:0.5;render()};
+      plus.onclick=()=>{draft.count=draft.count<1?1:draft.count+1;render()};
+      qn.oninput=()=>{const c=+qn.value;if(c>0){draft.count=Math.round(c*10)/10;kc.textContent=fmt(draft.count*uk)+" kcal"}};
+      qn.onchange=()=>{if(draft.count>0){render();document.getElementById("qn"+i)?.focus()}};
+      if(f.portions&&f.portions.length>1){const sel=document.createElement("select");sel.className="qs";sel.setAttribute("aria-label","Ühik");
+        f.portions.forEach(([l,c],j)=>sel.add(new Option(`${unitText(draft.count,l)} · ${fmt(c)} kcal/tk`,j)));sel.value=draft.pi;
+        sel.onchange=()=>{draft.pi=+sel.value;render()};box.append(sel)}
+      else{const u=document.createElement("span");u.textContent=unitText(draft.count,f.unit)+(f.unitKcal?` · ${fmt(f.unitKcal)} kcal/tk`:"");box.append(u)}
+      const ok=document.createElement("button");ok.type="button";ok.className="btn eat small";ok.textContent="Salvesta";
+      ok.onclick=()=>{if(!(draft.count>0))return;f.count=draft.count;if(f.portions){f.pi=draft.pi;f.unit=f.portions[f.pi][0];f.unitKcal=f.portions[f.pi][1]}editIdx=-1;save();render()};
+      const no=document.createElement("button");no.type="button";no.className="btn ghost small";no.textContent="Tühista";
+      no.onclick=()=>{editIdx=-1;render()};
+      qn.onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();ok.click()}if(e.key==="Escape")no.click()};
+      box.append(ok,no);meta.append(box);
+    }
+    li.querySelector(".x").onclick=()=>{d.foods.splice(i,1);editIdx=-1;save();render()};fl.append(li)});
+  $("actTotal").textContent=fmt(burned)+" kcal";$("foodTotal").textContent=fmt(eaten)+" kcal";
+  $("nBurn").textContent=fmt(burned)+" kcal";$("nEat").textContent=fmt(eaten)+" kcal";
+  const mx=Math.max(burned,eaten,1);$("bBurn").style.width=(burned/mx*100)+"%";$("bEat").style.width=(eaten/mx*100)+"%";
+  const left=burned-eaten,over=left<0;$("bEat").classList.toggle("over",over);
+  const big=$("vBig");big.className="big "+(over?"over":"ok");big.innerHTML=fmt(Math.abs(left))+"<small>kcal</small>";
+  if(!burned&&!eaten){$("vLabel").textContent="Varu";$("vText").textContent="Alusta liikumisest: lisa tegevus ja selle kestus.";$("vEquiv").textContent="";return}
+  $("vLabel").textContent=over?"Üle söödud":"Võid veel süüa";
+  $("vText").textContent=over?`Oled söönud ${fmt(-left)} kcal rohkem, kui liikumisega kulutasid.`:`Liikumisega kulutasid ${fmt(burned)} kcal, söönud oled ${fmt(eaten)} kcal.`;
+  const a=Math.abs(left);
+  $("vEquiv").textContent=a>=40?(over?`Tasakaalu jõudmiseks: ${fmt(a/(4.3*store.weight/60))} min kiiret kõndi või ${fmt(a/(9.8*store.weight/60))} min jooksu keskmises tempos`
+    :"See on umbes "+EQUIV.map(([k,l])=>`${fmtN(a/k)} ${l}`).join(", ")):"";
+}
+
+$("actSel").onchange=actHint;$("actMin").oninput=actHint;
+$("actForm").onsubmit=e=>{e.preventDefault();const min=+$("actMin").value;if(!min||min<=0){$("actHint").textContent="Sisesta kestus minutites, näiteks 45.";return}
+  const [n,m]=ACTS[$("actSel").value];const d=cur();delete d.demo;d.acts.push({name:n,met:m,min});save();render()};
+$("weight").onchange=()=>{const w=+$("weight").value;if(w>=30&&w<=250){store.weight=w;save();render();actHint()}};
+$("day").onchange=()=>{day=$("day").value||todayStr();render()};
+$("clearDemo").onclick=()=>{store.days[day]={acts:[],foods:[]};save();render()};
+
+actHint();render();save();
+</script>
+
+</body>
+</html>
