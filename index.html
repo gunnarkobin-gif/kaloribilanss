@@ -96,6 +96,14 @@ form.add input,form.add select{width:100%}
 .stepper input{border-radius:0;border-left:0;border-right:0;text-align:center;width:100%}
 .pick .actions{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap}
 .pick .actions .btn.eat{flex:1}
+.combo{border:1px solid var(--eat);background:var(--eat-soft);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.combo h3{margin:0;font:700 18px/1.2 var(--f-display);display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.combo h3 .num{font-size:16px;color:var(--eat)}
+.combo ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.combo li{display:grid;grid-template-columns:1fr auto auto;gap:8px 10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.combo li .qty{margin-top:4px}
+.combo li.miss{border-style:dashed}
+.combo .actions .btn{width:100%}
 .nomatch{font-size:14px;color:var(--muted);display:flex;flex-direction:column;gap:8px}
 .ai{border:1px dashed var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;font-size:14px}
 .ai ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
@@ -193,6 +201,12 @@ footer a{color:inherit}
         <label class="fld" for="foodQ">Mida sa sõid või jõid?</label>
         <input type="search" id="foodQ" autocomplete="off" placeholder="nt 2 õlut, pannkook, sõõrik" aria-controls="foodResults">
       </div>
+      <div class="combo" id="combo" hidden>
+        <h3>Koostisosad <span class="num" id="comboKcal"></span></h3>
+        <ul id="comboList"></ul>
+        <p class="hint" id="comboNote"></p>
+        <div class="actions"><button class="btn eat" type="button" id="comboAdd">Lisa kõik söödu hulka</button></div>
+      </div>
       <ul class="results" id="foodResults" hidden></ul>
 
       <div class="pick" id="pick" hidden>
@@ -268,6 +282,7 @@ const F=[
  ["Sai|röstsai|saiaviil",265,[["viil",28]]],
  ["Võileib singiga|võileib|leib singiga",230,[["võileib",70]]],
  ["Võileib juustuga|võileib|juustuvõileib",260,[["võileib",65]]],
+ ["Leib võiga|võileib",270,[["võileib",35]]],
  ["Croissant|sarvesai",406,[["tk",60]]],
  ["Kaerahelbepuder vees|puder|kaerapuder|helbepuder",70,[["kauss",250],["väike kauss",150]]],
  ["Kaerahelbepuder piimaga|puder|kaerapuder|helbepuder",110,[["kauss",250],["väike kauss",150]]],
@@ -291,7 +306,7 @@ const F=[
  ["Salaami|suitsuvorst|vorst",400,[["viil",10]]],
  ["Moos|džemm|keedis",250,[["teelusikatäis",10],["supilusikatäis",20]]],
  ["Mesi",320,[["teelusikatäis",10],["supilusikatäis",20]]],
- ["Suhkur",400,[["teelusikatäis",5],["tükk",4]]],
+ ["Suhkur|suhkru|suhkrut",400,[["teelusikatäis",5],["tükk",4]]],
  ["Nutella|šokolaadikreem",540,[["teelusikatäis",15]]],
  ["Maapähklivõi",590,[["supilusikatäis",16]]],
 
@@ -345,14 +360,14 @@ const F=[
  ["Kartulipuder|puder",105,[["portsjon",200]]],
  ["Praekartul|praetud kartul|kartul",150,[["portsjon",200]]],
  ["Friikartulid|friikad|kartul",312,[["väike portsjon",80],["keskmine portsjon",120],["suur portsjon",160]]],
- ["Kartulisalat|rosolje|salat",170,[["portsjon",200]]],
+ ["Kartulisalat|rosolje",170,[["portsjon",200]]],
  ["Riis|keedetud riis",130,[["portsjon",180]]],
  ["Pasta|makaronid|spagetid|nuudlid",158,[["portsjon",200]]],
  ["Tatar|keedetud tatar",110,[["portsjon",180]]],
  ["Kuskuss",112,[["portsjon",180]]],["Bulgur",83,[["portsjon",180]]],
 
  ["Kanafilee|kana|kanarind|broiler",165,[["portsjon",150]]],
- ["Kanakoib|kana",215,[["koib",120]]],
+ ["Kanakoib|koib",215,[["koib",120]]],
  ["Kanatiivad|kana|tiivad",290,[["tiib",40]]],
  ["Kananagitsad|nagitsad|nuggets|kana",280,[["tk",18]]],
  ["Grillkana|ahjukana|kana",215,[["veerand kana",250],["pool kana",500]]],
@@ -398,13 +413,13 @@ const F=[
  ["Sushi",150,[["tükk",30],["rull (8 tükki)",240]]],
  ["Wok|nuudlid|wokk",150,[["karp",350]]],
  ["Kiirnuudlid|nuudlid",450,[["pakk",85]]],
- ["Caesari salat|salat|caesar",150,[["portsjon",300]]],
- ["Kreeka salat|salat|kreeka",130,[["portsjon",250],["väike portsjon",150]]],
- ["Kreeka salat ilma õlita|salat|kreeka",75,[["portsjon",250],["väike portsjon",150]]],
- ["Tomati-kurgisalat hapukoorega|salat|kurgisalat|tomatisalat",60,[["portsjon",150]]],
- ["Kapsasalat|salat|coleslaw",90,[["portsjon",150]]],
- ["Tuunikalasalat|salat",120,[["portsjon",250]]],
- ["Kanasalat|salat",140,[["portsjon",250]]],
+ ["Caesari salat|caesar",150,[["portsjon",300]]],
+ ["Kreeka salat|kreeka",130,[["portsjon",250],["väike portsjon",150]]],
+ ["Kreeka salat ilma õlita|kreeka",75,[["portsjon",250],["väike portsjon",150]]],
+ ["Tomati-kurgisalat hapukoorega|kurgisalat|tomatisalat",60,[["portsjon",150]]],
+ ["Kapsasalat|coleslaw",90,[["portsjon",150]]],
+ ["Tuunikalasalat",120,[["portsjon",250]]],
+ ["Kanasalat",140,[["portsjon",250]]],
  ["Nachod|nachos",330,[["portsjon",150]]],
 
  ["Pähklid|pähkel",600,[["peotäis",30]]],["Maapähklid|pähklid",570,[["peotäis",30]]],["Krõpsud|krõps|kartulikrõpsud",536,[["peotäis",30],["pakk",150]]],
@@ -471,7 +486,7 @@ function scoreFood(f,words){
     let s=0;
     const sh=w.length>=3?w.slice(0,w.length-1):w;
     for(const m of f.main){if(m===w||m===stem||m===sh)s=Math.max(s,8);else if(m.startsWith(w))s=Math.max(s,5);else if(m.startsWith(sh)&&m.length<=sh.length+1)s=Math.max(s,4);else if(m.startsWith(stem))s=Math.max(s,4);else if(stem.length>=4&&m.includes(stem))s=Math.max(s,2)}
-    for(const a of f.alias){if(a===w||a===stem||a===sh)s=Math.max(s,4);else if(a.startsWith(stem))s=Math.max(s,3);else if(stem.length>=4&&a.includes(stem))s=Math.max(s,1)}
+    for(const a of f.alias){if(a===w||a===stem||a===sh)s=Math.max(s,9);else if(a.startsWith(stem))s=Math.max(s,3);else if(stem.length>=4&&a.includes(stem))s=Math.max(s,1)}
     if(s){hit++;total+=s}
   }
   if(!hit)return 0;
@@ -550,7 +565,7 @@ let results=[],active=0,picked=null,qCount=null;
 function showResults(){
   const q=$("foodQ").value.trim();const ul=$("foodResults");ul.innerHTML="";
   $("noMatch").hidden=true;
-  if(!q){ul.hidden=true;$("webBox").hidden=true;return}
+  if(!q){ul.hidden=true;$("webBox").hidden=true;$("combo").hidden=true;return}
   const r=search(q);results=r.items;qCount=r.count;active=0;
   if(results.length){
     results.forEach((f,i)=>{const [pl,pg]=f.portions[0];const li=document.createElement("li");const b=document.createElement("button");b.type="button";
@@ -562,10 +577,83 @@ function showResults(){
       b.onclick=()=>choose(f);li.append(b);ul.append(li)});
     ul.hidden=false;
   }else{ul.hidden=true;$("noMatch").hidden=false;$("noMatchText").textContent=`„${q}” ei ole äpi nimekirjas. Otsi allpool internetist või sisesta kalorid ise.`}
+  showCombo(q);
   offSearch(q);
 }
+/* Liitroog: "pannkook moosiga", "kohv piimaga ilma suhkruta", "kana, riis ja salat" -> eraldi koostisosad */
+const SIDE_PORTION={"Moos":"supilusikatäis","Mesi":"supilusikatäis","Hapukoor":"supilusikatäis","Vahukoor":"supilusikatäis","Suhkur":"teelusikatäis",
+  "Või":"õhuke kiht leival","Juust":"viil","Majonees":"supilusikatäis","Ketšup":"supilusikatäis","Sinep":"teelusikatäis","Nutella":"teelusikatäis",
+  "Maapähklivõi":"supilusikatäis","Oliiviõli":"supilusikatäis","Salatikaste":"portsjon","Küüslaugukaste":"supilusikatäis","Sink":"viil","Kodujuust":"supilusikatäis"};
+const HOT_DRINK=/^(Kohv|Espresso|Cappuccino|Latte|Tee|Kakao)/;
+function parseCombo(q){
+  let t=" "+q.toLowerCase().replace(/[+&]/g,",")+" ";
+  const excluded=[];
+  t=t.replace(/\bilma\s+([^,]+?)(?=,|\bja\b|\bning\b|$)/g,(m,w)=>{excluded.push(w.trim());return " "});
+  let segs=t.split(/,|\bja\b|\bning\b|\bkoos\b/).map(x=>x.trim().split(/\s+/).filter(Boolean)).filter(x=>x.length);
+  const parts=[];
+  segs.forEach((ws,si)=>{
+    const sides=ws.filter(w=>w.length>4&&/ga$/.test(w)).map(w=>w.slice(0,-2));
+    const base=ws.filter(w=>!(w.length>4&&/ga$/.test(w)));
+    /* "moosi ja hapukoorega": eelmise lõigu viimane sõna on samuti lisand */
+    if(!base.length&&sides.length&&parts.length){const prev=parts[parts.length-1];
+      if(prev.role==="base"&&prev.words.length>1){const w=prev.words.pop();parts.push({words:[w],role:"side"})}}
+    if(base.length)parts.push({words:base,role:"base"});
+    sides.forEach(w=>parts.push({words:[w],role:"side"}));
+  });
+  return{parts,excluded};
+}
+let comboItems=[];
+function showCombo(q){
+  const box=$("combo");const {parts,excluded}=parseCombo(q);
+  if(parts.length<2){box.hidden=true;comboItems=[];return}
+  const {count}=parseQuery(q);const c0=count&&count>0?count:1;
+  let baseFood=null;
+  comboItems=parts.map(p=>{
+    const term=p.words.join(" ");const r=search(term);
+    let f=r.items[0]||null;
+    if(f&&p.role==="base"){ /* eelistame lihtsat varianti, mitte valmis liitrooga */
+      const plain=r.items.find(x=>!/ ja | moosi| piima| suhkru| hapukoore|ga$|ga /i.test(" "+x.name));if(plain)f=plain}
+    if(p.role==="base"&&f&&!baseFood)baseFood=f;
+    if(!f)return{term,food:null};
+    let pi=0;
+    if(p.role==="side"){
+      let want=SIDE_PORTION[f.name];
+      if(f.name==="Piim"&&baseFood&&HOT_DRINK.test(baseFood.name))want="portsjon kohvi sisse (3 cl)";
+      if(want){const i=f.portions.findIndex(x=>x[0]===want);if(i>=0)pi=i}
+    }
+    const num=parseQuery(term).count;
+    return{term,food:f,pi,count:num&&num>0?num:c0,role:p.role};
+  });
+  box.hidden=false;renderCombo(excluded);
+}
+function renderCombo(excluded){
+  const ul=$("comboList");ul.innerHTML="";let tot=0,found=0;
+  comboItems.forEach((it,i)=>{const li=document.createElement("li");
+    if(!it.food){li.className="miss";li.innerHTML='<span class="it-name"><span class="fname"></span><span class="it-meta">ei ole äpi nimekirjas</span></span><span></span><button class="x" aria-label="Eemalda">×</button>';
+      li.querySelector(".fname").textContent=it.term;li.querySelector(".x").onclick=()=>{comboItems.splice(i,1);renderCombo(excluded)};ul.append(li);return}
+    found++;const f=it.food;const g=f.portions[it.pi][1];const k=f.kcal*g/100*it.count;tot+=k;
+    li.innerHTML='<span class="it-name"><span class="fname"></span><span class="qty"><button type="button" class="qb" aria-label="Vähem">−</button><input type="number" class="qn" min="0.5" step="0.5" inputmode="decimal" aria-label="Kogus"><button type="button" class="qb" aria-label="Rohkem">+</button></span></span><span class="it-kcal"></span><button class="x" aria-label="Eemalda">×</button>';
+    li.querySelector(".fname").textContent=f.name;li.querySelector(".it-kcal").textContent=fmt(k)+" kcal";
+    const qn=li.querySelector(".qn");qn.value=it.count;qn.id="cq"+i;
+    const [mi,pl]=li.querySelectorAll(".qb");
+    mi.onclick=()=>{it.count=it.count>1?it.count-1:0.5;renderCombo(excluded)};pl.onclick=()=>{it.count=it.count<1?1:it.count+1;renderCombo(excluded)};
+    qn.onchange=()=>{const v=+qn.value;if(v>0){it.count=Math.round(v*10)/10;renderCombo(excluded)}};
+    const sel=document.createElement("select");sel.className="qs";sel.setAttribute("aria-label","Ühik");
+    f.portions.forEach(([l,gg],j)=>sel.add(new Option(`${unitText(it.count,l)} · ${fmt(f.kcal*gg/100)} kcal/tk`,j)));sel.value=it.pi;
+    sel.onchange=()=>{it.pi=+sel.value;renderCombo(excluded)};li.querySelector(".qty").append(sel);
+    li.querySelector(".x").onclick=()=>{comboItems.splice(i,1);if(comboItems.length)renderCombo(excluded);else $("combo").hidden=true};
+    ul.append(li)});
+  $("comboKcal").textContent=fmt(tot)+" kcal";
+  const notes=[];if(excluded.length)notes.push("Ilma: "+excluded.map(w=>{const t=w.replace(/(ta|da)$/,"");const f=search(t).items[0];return f?f.name.toLowerCase():w}).join(", ")+".");
+  if(comboItems.some(x=>!x.food))notes.push("Punktiiriga rida ei ole nimekirjas. Otsi seda eraldi või sisesta kalorid ise.");
+  $("comboNote").textContent=notes.join(" ");
+  $("comboAdd").disabled=!found;
+}
+$("comboAdd").onclick=()=>{const d=cur();delete d.demo;
+  comboItems.filter(x=>x.food).forEach(x=>d.foods.push(normEntry(entryFrom(x.food,x.count,x.pi))));
+  save();render();$("combo").hidden=true;comboItems=[];$("foodQ").value="";showResults();$("foodQ").focus()};
 function choose(f){
-  picked=f;$("pick").hidden=false;$("foodResults").hidden=true;$("noMatch").hidden=true;$("webBox").hidden=true;
+  picked=f;$("pick").hidden=false;$("combo").hidden=true;$("foodResults").hidden=true;$("noMatch").hidden=true;$("webBox").hidden=true;
   $("pickName").textContent=f.name;const s=$("pickPortion");s.innerHTML="";
   f.portions.forEach(([l,g],i)=>s.add(new Option(`${l} · ${fmt(f.kcal*g/100)} kcal`,i)));
   $("pickCount").value=qCount&&qCount>0?qCount:1;pickCalc();$("pickAdd").focus();
