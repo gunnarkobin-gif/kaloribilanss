@@ -39,6 +39,9 @@ input,select,button{font:inherit;color:inherit}
 input,select{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0;text-transform:none;letter-spacing:0;font-weight:500;font-size:15px;color:var(--fg)}
 input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .w-num{width:90px}
+label.chk{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px;padding-bottom:9px;cursor:pointer}
+label.chk input{width:18px;height:18px;accent-color:var(--eat)}
+.breakdown{font-size:13px;color:var(--muted);margin:-4px 0 0 98px}
 
 .balance{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;display:grid;grid-template-columns:1.2fr 1fr;gap:20px 28px}
 @media (max-width:720px){.balance{grid-template-columns:1fr}}
@@ -156,6 +159,10 @@ footer a{color:inherit}
     <div class="controls">
       <label class="fld" for="day">Päev<input type="date" id="day"></label>
       <label class="fld" for="weight">Kehakaal, kg<input type="number" id="weight" class="w-num" min="30" max="250" step="0.5" inputmode="decimal"></label>
+      <label class="fld" for="height">Pikkus, cm<input type="number" id="height" class="w-num" min="120" max="230" step="1" inputmode="numeric"></label>
+      <label class="fld" for="age">Vanus<input type="number" id="age" class="w-num" min="15" max="100" step="1" inputmode="numeric"></label>
+      <label class="fld" for="sex">Sugu<select id="sex"><option value="m">mees</option><option value="f">naine</option></select></label>
+      <label class="chk" for="bmrOn"><input type="checkbox" id="bmrOn"> Arvesta keha põhikulu</label>
     </div>
   </header>
 
@@ -173,6 +180,7 @@ footer a{color:inherit}
     </div>
     <div class="meter">
       <div class="row"><span class="lab">Kulutatud</span><div class="track"><div class="bar burn" id="bBurn" style="width:0"></div></div><span class="num" id="nBurn">0 kcal</span></div>
+      <p class="breakdown" id="burnSplit" hidden></p>
       <div class="row"><span class="lab">Söödud</span><div class="track"><div class="bar eat" id="bEat" style="width:0"></div></div><span class="num" id="nEat">0 kcal</span></div>
     </div>
   </section>
@@ -252,7 +260,7 @@ footer a{color:inherit}
   </div>
 
   <footer>
-    Kulutus arvutatakse valemiga MET × kehakaal (kg) × tunnid, MET-väärtused on võetud kehalise aktiivsuse kompendiumist. Tulemus on hinnang: tegelik kulu sõltub tempost, vanusest ja vormist. Arvesse on võetud ainult liikumine, mitte keha põhiainevahetus. Äpi nimekirja kalorid on keskmised väärtused. Internetiotsingu andmed: <a href="https://fdc.nal.usda.gov" target="_blank" rel="noopener">USDA FoodData Central</a> ja <a href="https://world.openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a> (ODbL), tõlge <a href="https://mymemory.translated.net" target="_blank" rel="noopener">MyMemory</a>. Andmed salvestuvad ainult sinu brauserisse.
+    Keha põhikulu arvutatakse Mifflin-St Jeori valemiga ja korrutatakse 1,2-ga, mis katab tavalise päevase olemise (kodus liikumine, seedimine). Trenni kulu arvutatakse valemiga MET × kehakaal (kg) × tunnid; kui põhikulu on sees, arvestatakse trennist ainult lisakulu (MET − 1), et puhkeolekukulu ei läheks kahekordselt. MET-väärtused on kehalise aktiivsuse kompendiumist. Kõik numbrid on hinnangud, inimeseti võib tegelik kulu erineda umbes ±10%. Äpi nimekirja kalorid on keskmised väärtused. Internetiotsingu andmed: <a href="https://fdc.nal.usda.gov" target="_blank" rel="noopener">USDA FoodData Central</a> ja <a href="https://world.openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a> (ODbL), tõlge <a href="https://mymemory.translated.net" target="_blank" rel="noopener">MyMemory</a>. Andmed salvestuvad ainult sinu brauserisse.
     <details class="settings"><summary>Seaded</summary>
       <p>Toiduainete otsing kasutab USDA FoodData Central andmebaasi. Ühise demovõtmega saab teha umbes 30 otsingut tunnis. Oma tasuta võtme saad aadressilt <a href="https://fdc.nal.usda.gov/api-key-signup" target="_blank" rel="noopener">fdc.nal.usda.gov/api-key-signup</a>, siis on limiit 1000 otsingut tunnis.</p>
       <label class="fld" for="usdaKeyIn">USDA API võti<input type="text" id="usdaKeyIn" autocomplete="off" spellcheck="false" placeholder="kasutusel demovõti"></label>
@@ -666,13 +674,19 @@ if(firstRun||(store.days[day]&&store.days[day].demo)){
     fromDb("Pannkook moosi ja hapukoorega",2,0),fromDb("Sõõrik",1,0),fromDb("Hamburger",1,0),fromDb("Õlu",2,0)]};
 }
 const cur=()=>store.days[day]||(store.days[day]={acts:[],foods:[]});
-const kcalAct=a=>a.met*store.weight*a.min/60;
+/* Põhiainevahetus (Mifflin-St Jeor) × 1,2 igapäevaseks olemiseks; trennile siis ainult lisakulu (MET − 1) */
+function bmr(){const p=store.profile||{};if(!p.age||!p.height)return 0;
+  return 10*store.weight+6.25*p.height-5*p.age+(p.sex==="f"?-161:5)}
+const bmrActive=()=>!!(store.profile&&store.profile.bmrOn&&bmr()>0);
+const baseKcal=()=>bmrActive()?bmr()*1.2:0;
+const metNet=m=>bmrActive()?Math.max(m-1,0):m;
+const kcalAct=a=>metNet(a.met)*store.weight*a.min/60;
 function addFood(entry){const d=cur();delete d.demo;d.foods.push(normEntry(entry));save();render()}
 
 /* activity form */
 ACT_G.forEach(([g,l])=>{const og=document.createElement("optgroup");og.label=g;l.forEach(x=>og.append(new Option(x[0],ACTS.indexOf(x))));$("actSel").append(og)});
 $("day").value=day;$("weight").value=store.weight;
-function actHint(){const m=ACTS[$("actSel").value][1];const min=+$("actMin").value||0;
+function actHint(){const m=metNet(ACTS[$("actSel").value][1]);const min=+$("actMin").value||0;
   $("actHint").textContent=min?`≈ ${fmt(m*store.weight*min/60)} kcal (${fmt(m*store.weight)} kcal tunnis sinu kaaluga)`:""}
 
 /* food search */
@@ -954,13 +968,16 @@ function render(){
     }
     li.querySelector(".x").onclick=()=>{d.foods.splice(i,1);editIdx=-1;save();render()};fl.append(li)});
   $("actTotal").textContent=fmt(burned)+" kcal";$("foodTotal").textContent=fmt(eaten)+" kcal";
+  const base=baseKcal(),moved=burned;burned+=base;
+  $("burnSplit").hidden=!base;if(base)$("burnSplit").textContent=`keha põhikulu ${fmt(base)} + liikumine ${fmt(moved)} kcal`;
   $("nBurn").textContent=fmt(burned)+" kcal";$("nEat").textContent=fmt(eaten)+" kcal";
   const mx=Math.max(burned,eaten,1);$("bBurn").style.width=(burned/mx*100)+"%";$("bEat").style.width=(eaten/mx*100)+"%";
   const left=burned-eaten,over=left<0;$("bEat").classList.toggle("over",over);
   const big=$("vBig");big.className="big "+(over?"over":"ok");big.innerHTML=fmt(Math.abs(left))+"<small>kcal</small>";
-  if(!burned&&!eaten){$("vLabel").textContent="Varu";$("vText").textContent="Alusta liikumisest: lisa tegevus ja selle kestus.";$("vEquiv").textContent="";return}
+  if(!burned&&!eaten){$("vLabel").textContent="Varu";$("vText").textContent=store.profile&&store.profile.bmrOn?"Keha põhikulu arvestamiseks sisesta üleval pikkus ja vanus.":"Alusta liikumisest: lisa tegevus ja selle kestus.";$("vEquiv").textContent="";return}
   $("vLabel").textContent=over?"Üle söödud":"Võid veel süüa";
-  $("vText").textContent=over?`Oled söönud ${fmt(-left)} kcal rohkem, kui liikumisega kulutasid.`:`Liikumisega kulutasid ${fmt(burned)} kcal, söönud oled ${fmt(eaten)} kcal.`;
+  const how=base?"päevaga kokku":"liikumisega";
+  $("vText").textContent=over?`Oled söönud ${fmt(-left)} kcal rohkem, kui ${how} kulutad.`:`${base?"Päeva kulu kokku":"Liikumisega kulutasid"} ${fmt(burned)} kcal, söönud oled ${fmt(eaten)} kcal.`;
   const a=Math.abs(left);
   $("vEquiv").textContent=a>=40?(over?`Tasakaalu jõudmiseks: ${fmt(a/(4.3*store.weight/60))} min kiiret kõndi või ${fmt(a/(9.8*store.weight/60))} min jooksu keskmises tempos`
     :"See on umbes "+EQUIV.map(([k,l])=>`${fmtN(a/k)} ${l}`).join(", ")):"";
@@ -970,6 +987,12 @@ $("actSel").onchange=actHint;$("actMin").oninput=actHint;
 $("actForm").onsubmit=e=>{e.preventDefault();const min=+$("actMin").value;if(!min||min<=0){$("actHint").textContent="Sisesta kestus minutites, näiteks 45.";return}
   const [n,m]=ACTS[$("actSel").value];const d=cur();delete d.demo;d.acts.push({name:n,met:m,min});save();render()};
 $("weight").onchange=()=>{const w=+$("weight").value;if(w>=30&&w<=250){store.weight=w;save();render();actHint()}};
+store.profile=store.profile||{sex:"m",age:null,height:null,bmrOn:true};
+$("height").value=store.profile.height||"";$("age").value=store.profile.age||"";$("sex").value=store.profile.sex||"m";$("bmrOn").checked=!!store.profile.bmrOn;
+const profChange=()=>{const h=+$("height").value,a=+$("age").value;
+  store.profile.height=h>=120&&h<=230?h:null;store.profile.age=a>=15&&a<=100?a:null;store.profile.sex=$("sex").value;store.profile.bmrOn=$("bmrOn").checked;
+  save();render();actHint()};
+["height","age","sex","bmrOn"].forEach(id=>$(id).onchange=profChange);
 $("day").onchange=()=>{day=$("day").value||todayStr();render()};
 $("clearDemo").onclick=()=>{store.days[day]={acts:[],foods:[]};save();render()};
 
