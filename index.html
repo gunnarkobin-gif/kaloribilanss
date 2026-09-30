@@ -155,6 +155,33 @@ footer{color:var(--muted);font-size:13px;max-width:75ch}
 .src{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:4px 0 6px}
 footer a{color:inherit}
 .settings{margin-top:12px}.settings summary{cursor:pointer;font-weight:600;color:var(--fg)}.settings p{margin:8px 0}.settings input{width:100%;max-width:360px}
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.btn.danger{border-color:var(--over);color:var(--over);background:var(--over-soft)}
+#report{display:none}
+@media print{
+  @page{size:A4;margin:16mm}
+  body{background:#fff;color:#000}
+  .wrap{display:none!important}
+  #report{display:block;font:11pt/1.45 var(--f-body);color:#000}
+  #report h1{font:800 24pt/1.1 var(--f-display);margin:0 0 4pt}
+  #report h2{font:700 14pt/1.2 var(--f-display);margin:18pt 0 6pt;border-bottom:1.5pt solid #000;padding-bottom:3pt}
+  #report .r-sub{margin:0 0 12pt;color:#444}
+  #report .r-verdict{display:flex;align-items:baseline;gap:12pt;margin:0 0 10pt}
+  #report .r-verdict span{font-weight:600;text-transform:uppercase;letter-spacing:.06em;font-size:9pt;color:#444}
+  #report .r-verdict strong{font:800 26pt/1 var(--f-display);color:#1f6b45}
+  #report .r-verdict.r-over strong{color:#a3231b}
+  #report table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  #report th{text-align:left;font-size:9pt;text-transform:uppercase;letter-spacing:.05em;color:#444;border-bottom:1pt solid #000;padding:4pt 6pt}
+  #report td{padding:4pt 6pt;border-bottom:.5pt solid #ccc;vertical-align:top}
+  #report td:last-child,#report th:last-child{text-align:right;white-space:nowrap}
+  #report .r-sum{width:auto;min-width:60%}
+  #report .r-strong td{font-weight:700;border-top:1pt solid #000}
+  #report .r-part td{color:#444;font-size:10pt}
+  #report .r-part td:first-child{padding-left:18pt}
+  #report tr{break-inside:avoid}
+  #report .r-empty{color:#666}
+  #report .r-foot{margin-top:18pt;font-size:8.5pt;color:#555}
+}
 </style>
 </head>
 <body>
@@ -176,9 +203,10 @@ footer a{color:inherit}
     </div>
   </header>
 
-  <div class="banner" id="demoBanner" hidden>
-    <span>Need on näidisandmed, et näeksid, kuidas äpp töötab.</span>
-    <button class="btn ghost small" id="clearDemo" type="button">Kustuta näited ja alusta</button>
+  <div class="toolbar">
+    <button class="btn ghost small" id="clearAll" type="button">Tühjenda kõik</button>
+    <button class="btn ghost small" id="reportBtn" type="button">Salvesta raport (PDF)</button>
+    <span class="hint" id="toolNote"></span>
   </div>
 
   <section class="balance" aria-live="polite">
@@ -278,7 +306,7 @@ footer a{color:inherit}
   </div>
 
   <footer>
-    Keha põhikulu arvutatakse Mifflin-St Jeori valemiga ja korrutatakse 1,2-ga, mis katab tavalise päevase olemise (kodus liikumine, seedimine). Trenni kulu arvutatakse valemiga MET × kehakaal (kg) × tunnid; kui põhikulu on sees, arvestatakse trennist ainult lisakulu (MET − 1), et puhkeolekukulu ei läheks kahekordselt. MET-väärtused on kehalise aktiivsuse kompendiumist. Kõik numbrid on hinnangud, inimeseti võib tegelik kulu erineda umbes ±10%. Äpi nimekirja kalorid on keskmised väärtused. Internetiotsingu andmed: <a href="https://fdc.nal.usda.gov" target="_blank" rel="noopener">USDA FoodData Central</a> ja <a href="https://world.openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a> (ODbL), tõlge <a href="https://mymemory.translated.net" target="_blank" rel="noopener">MyMemory</a>. Andmed salvestuvad ainult sinu brauserisse.
+    Keha põhikulu arvutatakse Mifflin-St Jeori valemiga ja korrutatakse 1,2-ga, mis katab tavalise päevase olemise (kodus liikumine, seedimine). Trenni kulu arvutatakse valemiga MET × kehakaal (kg) × tunnid; kui põhikulu on sees, arvestatakse trennist ainult lisakulu (MET − 1), et puhkeolekukulu ei läheks kahekordselt. MET-väärtused on kehalise aktiivsuse kompendiumist. Kõik numbrid on hinnangud, inimeseti võib tegelik kulu erineda umbes ±10%. Äpi nimekirja kalorid on keskmised väärtused. Internetiotsingu andmed: <a href="https://fdc.nal.usda.gov" target="_blank" rel="noopener">USDA FoodData Central</a> ja <a href="https://world.openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a> (ODbL), tõlge <a href="https://mymemory.translated.net" target="_blank" rel="noopener">MyMemory</a>. Liikumised ja toidud on meeles ainult selles vahelehes: uuel avamisel algab leht puhtalt. Kaal, pikkus, vanus ja sugu jäävad brauserisse meelde.
     <details class="settings"><summary>Seaded</summary>
       <p>Toiduainete otsing kasutab USDA FoodData Central andmebaasi. Ühise demovõtmega saab teha umbes 30 otsingut tunnis. Oma tasuta võtme saad aadressilt <a href="https://fdc.nal.usda.gov/api-key-signup" target="_blank" rel="noopener">fdc.nal.usda.gov/api-key-signup</a>, siis on limiit 1000 otsingut tunnis.</p>
       <label class="fld" for="usdaKeyIn">USDA API võti<input type="text" id="usdaKeyIn" autocomplete="off" spellcheck="false" placeholder="kasutusel demovõti"></label>
@@ -286,6 +314,7 @@ footer a{color:inherit}
     </details>
   </footer>
 </div>
+<div id="report" aria-hidden="true"></div>
 
 <script>
 const ACT_G=[
@@ -649,9 +678,16 @@ const fmtN=n=>n.toLocaleString("et-EE",{maximumFractionDigits:1});
 const todayStr=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
 const KEY="kaloribilanss-v1";
 
+/* Kirjed (tegevused, toidud) hoitakse ainult selle vahelehe mälus: uuel avamisel algab leht puhtalt.
+   Isiklikud seaded (kaal, pikkus, vanus, sugu) jäävad brauserisse meelde. */
+const PKEY="kaloribilanss-seaded";
 let store={weight:80,days:{}};
-try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.days)store=s}catch(e){}
-const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(store))}catch(e){}};
+try{const old=JSON.parse(localStorage.getItem(KEY));if(old){store.weight=old.weight||80;if(old.profile)store.profile=old.profile;
+  localStorage.setItem(PKEY,JSON.stringify({weight:store.weight,profile:store.profile}));localStorage.removeItem(KEY)}}catch(e){}
+try{const p=JSON.parse(localStorage.getItem(PKEY));if(p){store.weight=p.weight||80;if(p.profile)store.profile=p.profile}}catch(e){}
+try{const s=JSON.parse(sessionStorage.getItem(KEY));if(s&&s.days)store.days=s.days}catch(e){}
+const save=()=>{try{sessionStorage.setItem(KEY,JSON.stringify({days:store.days}))}catch(e){}
+  try{localStorage.setItem(PKEY,JSON.stringify({weight:store.weight,profile:store.profile}))}catch(e){}};
 
 let editIdx=-1,draft=null;
 const PART={tass:"tassi",kruus:"kruusi",klaas:"klaasi",pudel:"pudelit",purk:"purki",pint:"pinti",pits:"pitsi",pokaal:"pokaali",karp:"karpi",pakk:"pakki",kauss:"kaussi",taldrik:"taldrikut",portsjon:"portsjonit",tükk:"tükki",viil:"viilu",võileib:"võileiba",kartul:"kartulit",koib:"koiba",tiib:"tiiba",komm:"kommi",küpsis:"küpsist",pall:"palli",pannkook:"pannkooki",peotäis:"peotäit",rull:"rulli",steik:"steiki",supilusikatäis:"supilusikatäit",teelusikatäis:"teelusikatäit",topsik:"topsikut",kiht:"kihti",tahvel:"tahvlit",kobar:"kobarat",kinokott:"kinokotti",pitsa:"pitsat",muna:"muna",rida:"rida",tk:"tk",topelt:"topelt",veerand:"veerandit",pool:"poolt"};
@@ -688,14 +724,6 @@ Object.values(store.days).forEach(d=>(d.foods||[]).forEach(f=>{if(f.count!==unde
   const db=FOODS.find(x=>x.name===f.name);if(db&&m){const i=db.portions.findIndex(p=>p[0]===m[2]);if(i>=0){f.portions=db.portions.map(([l,g])=>[l,db.kcal*g/100]);f.pi=i}}}));
 Object.values(store.days).forEach(d=>(d.foods||[]).forEach(normEntry));
 let day=todayStr();
-const firstRun=!Object.keys(store.days).length;
-if(firstRun||(store.days[day]&&store.days[day].demo)){
-  store.days[day]={demo:true,acts:[
-    {name:"Golf, käruga jalgsi",met:4.8,min:240},
-    {name:"Kõndimine, kiire tempo",met:4.3,min:30}],
-   foods:[
-    fromDb("Pannkook moosi ja hapukoorega",2,0),fromDb("Sõõrik",1,0),fromDb("Hamburger",1,0),fromDb("Õlu",2,0)]};
-}
 const cur=()=>store.days[day]||(store.days[day]={acts:[],foods:[]});
 /* Põhiainevahetus (Mifflin-St Jeor) × 1,2 igapäevaseks olemiseks; trennile siis ainult lisakulu (MET − 1) */
 function bmr(){const p=store.profile||{};if(!p.age||!p.height)return 0;
@@ -1027,7 +1055,7 @@ function startDrag(e,li,grip){
   grip.onpointerup=end;grip.onpointercancel=end;
 }
 function render(){
-  const d=cur();$("demoBanner").hidden=!d.demo;
+  const d=cur();
   const al=$("actList");al.innerHTML="";
   if(!d.acts.length)al.innerHTML='<li style="display:block"><p class="empty">Selle päeva tegevusi pole veel. Vali tegevus ja kestus ning vajuta „Lisa tegevus”.</p></li>';
   let burned=0;
@@ -1114,7 +1142,44 @@ const profChange=()=>{const h=+$("height").value,a=+$("age").value;
   save();render();actHint()};
 ["height","age","sex","bmrOn"].forEach(id=>$(id).onchange=profChange);
 $("day").onchange=()=>{day=$("day").value||todayStr();render()};
-$("clearDemo").onclick=()=>{store.days[day]={acts:[],foods:[]};save();render()};
+let clearArm=null;
+$("clearAll").onclick=()=>{
+  if(!clearArm){$("clearAll").textContent="Kinnita: kustuta kõik liikumised ja toidud";$("clearAll").classList.add("danger");
+    clearArm=setTimeout(()=>{clearArm=null;$("clearAll").textContent="Tühjenda kõik";$("clearAll").classList.remove("danger")},5000);return}
+  clearTimeout(clearArm);clearArm=null;$("clearAll").textContent="Tühjenda kõik";$("clearAll").classList.remove("danger");
+  store.days={};editIdx=-1;closeBuilder();picked=null;$("pick").hidden=true;$("foodQ").value="";showResults();save();render();
+  $("toolNote").textContent="Kõik kirjed kustutatud.";setTimeout(()=>$("toolNote").textContent="",3000)};
+
+/* ===== Raport (prindi / salvesta PDF-ina) ===== */
+const esc=t=>String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function buildReport(){
+  const d=cur();const base=baseKcal();
+  const acts=d.acts.map(a=>({name:a.name,min:a.min,k:kcalAct(a)}));const moved=acts.reduce((x,a)=>x+a.k,0);
+  const eaten=d.foods.reduce((x,f)=>x+fk(f),0);const spent=base+moved;const left=spent-eaten;
+  const dt=new Date(day+"T12:00:00").toLocaleDateString("et-EE",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+  const p=store.profile||{};
+  const prof=`Kehakaal ${fmtN(store.weight)} kg`+(p.height?`, pikkus ${p.height} cm`:"")+(p.age?`, vanus ${p.age}`:"")+`, ${p.sex==="f"?"naine":"mees"}`;
+  let h=`<h1>Kaloribilanss</h1><p class="r-sub">${esc(cap(dt))} · ${esc(prof)}</p>`;
+  h+=`<div class="r-verdict ${left<0?"r-over":""}"><span>${left<0?"Üle söödud":"Varu"}</span><strong>${fmt(Math.abs(left))} kcal</strong></div>`;
+  h+=`<table class="r-sum"><tbody>`+(base?`<tr><td>Keha põhikulu (põhiainevahetus × 1,2)</td><td>${fmt(base)} kcal</td></tr>`:"")+
+    `<tr><td>Liikumine${base?" (lisakulu)":""}</td><td>${fmt(moved)} kcal</td></tr>`+
+    `<tr class="r-strong"><td>Kulutatud kokku</td><td>${fmt(spent)} kcal</td></tr>`+
+    `<tr><td>Söödud kokku</td><td>${fmt(eaten)} kcal</td></tr>`+
+    `<tr class="r-strong"><td>${left<0?"Üle söödud":"Varu"}</td><td>${left<0?"−":""}${fmt(Math.abs(left))} kcal</td></tr></tbody></table>`;
+  h+=`<h2>Liikumine</h2>`+(acts.length?`<table><thead><tr><th>Tegevus</th><th>Kestus</th><th>kcal</th></tr></thead><tbody>`+
+    acts.map(a=>`<tr><td>${esc(a.name)}</td><td>${a.min} min</td><td>${fmt(a.k)}</td></tr>`).join("")+
+    `<tr class="r-strong"><td>Kokku</td><td>${acts.reduce((x,a)=>x+a.min,0)} min</td><td>${fmt(moved)}</td></tr></tbody></table>`:`<p class="r-empty">Liikumist pole lisatud.</p>`);
+  h+=`<h2>Söömine</h2>`+(d.foods.length?`<table><thead><tr><th>Toit</th><th>Kogus</th><th>kcal</th></tr></thead><tbody>`+
+    d.foods.map(f=>f.parts?`<tr><td><strong>${esc(f.name)}</strong></td><td>koostisosade järgi</td><td>${fmt(fk(f))}</td></tr>`+
+      f.parts.map(q=>`<tr class="r-part"><td>${esc(q.name)}</td><td>${esc(qtyText(q.count,q.unit))}</td><td>${fmt(q.count*q.unitKcal)}</td></tr>`).join("")
+      :`<tr><td>${esc(f.name)}</td><td>${esc(qtyText(f.count,f.unit))}</td><td>${fmt(fk(f))}</td></tr>`).join("")+
+    `<tr class="r-strong"><td>Kokku</td><td></td><td>${fmt(eaten)}</td></tr></tbody></table>`:`<p class="r-empty">Söödut pole lisatud.</p>`);
+  h+=`<p class="r-foot">Kõik numbrid on hinnangud. Põhikulu: Mifflin-St Jeori valem. Liikumine: MET × kehakaal × aeg${base?", põhikulu arvestamisel (MET − 1)":""}. Koostatud ${new Date().toLocaleString("et-EE",{dateStyle:"short",timeStyle:"short"})}, gunnarkobin-gif.github.io/kaloribilanss</p>`;
+  $("report").innerHTML=h;
+}
+$("reportBtn").onclick=()=>{buildReport();const t=document.title;document.title="Kaloribilanss "+day;
+  window.print();setTimeout(()=>document.title=t,1000)};
+window.addEventListener("beforeprint",buildReport);
 
 try{const k=localStorage.getItem("kb-usda-key");if(k)$("usdaKeyIn").value=k}catch(e){}
 $("usdaKeyIn").onchange=()=>{const v=$("usdaKeyIn").value.trim();try{v?localStorage.setItem("kb-usda-key",v):localStorage.removeItem("kb-usda-key")}catch(e){}
